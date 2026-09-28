@@ -1,0 +1,77 @@
+/*=========================================================
+            PROJECT EXPO VOTING SYSTEM (REACT)
+                  animation.css
+=========================================================*/
+
+body {
+    background: linear-gradient(-45deg, #050816, #08132e, #122b5c, #0d1d48, #050816);
+    background-size: 500% 500%;
+    animation: gradientBG 18s ease infinite;
+}
+
+@keyframes gradientBG {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background:
+        radial-gradient(circle at 20% 20%, rgba(0, 229, 255, 0.20), transparent 35%),
+        radial-gradient(circle at 80% 30%, rgba(79, 124, 255, 0.20), transparent 35%),
+        radial-gradient(circle at 50% 90%, rgba(255, 255, 255, 0.08), transparent 30%);
+    z-index: -3;
+    animation: moveGlow 15s linear infinite;
+    pointer-events: none;
+}
+
+@keyframes moveGlow {
+    0% { transform: translateY(0) rotate(0deg); }
+    100% { transform: translateY(-50px) rotate(360deg); }
+}
+
+/*====================================
+    SPOTLIGHT & 3D INTERACTIVE EFFECTS
+====================================*/
+.spotlight-glow {
+    position: absolute;
+    width: 250px;
+    height: 250px;
+    border-radius: 50%;
+    background: radial-gradient(circle at center, rgba(255, 255, 255, 0.25), rgba(0, 217, 255, 0.15) 40%, transparent 70%);
+    filter: blur(25px);
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    transition: opacity 0.3s ease;
+    opacity: 0;
+    z-index: 2;
+}
+
+.spline-scene-wrapper {
+    position: relative;
+    width: 100%;
+    height: 380px;
+    border-radius: 20px;
+    overflow: hidden;
+    background: rgba(5, 8, 22, 0.95);
+    border: 1px solid rgba(0, 217, 255, 0.3);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 30px rgba(0, 217, 255, 0.2);
+}
+
+.spline-scene-wrapper spline-viewer {
+    width: 100%;
+    height: 100%;
+}
+
+spline-viewer::shadow #logo,
+spline-viewer::shadow a,
+spline-viewer::shadow .watermark,
+spline-viewer::shadow #watermark {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}

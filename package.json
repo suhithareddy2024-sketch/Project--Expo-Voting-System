@@ -1,0 +1,15 @@
+{
+  "name": "project-expo-voting-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Project Expo Decentralized Voting System workspace",
+  "scripts": {
+    "dev": "npm --prefix react-app run dev",
+    "frontend": "npm --prefix react-app run dev",
+    "backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix react-app run dev",
+    "dev:backend": "npm --prefix backend run dev",
+    "build:frontend": "npm --prefix react-app run build",
+    "seed": "npm --prefix backend run seed"
+  }
+}

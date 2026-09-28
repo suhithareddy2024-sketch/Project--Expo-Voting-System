@@ -1,0 +1,126 @@
+/*=========================================================
+            PROJECT EXPO VOTING SYSTEM (REACT)
+                  responsive.css
+        Mobile, Tablet & Desktop Responsive Styles
+=========================================================*/
+
+/* Large Screens & Desktops */
+@media (max-width: 1200px) {
+    .hero-title {
+        font-size: 2.8rem;
+    }
+    
+    .oval-search-bar {
+        max-width: 90%;
+    }
+}
+
+/* Tablets (Portrait & Landscape) */
+@media (max-width: 991px) {
+    .glass-nav {
+        background: rgba(5, 8, 22, 0.95) !important;
+        backdrop-filter: blur(15px);
+        padding: 15px 0;
+    }
+    
+    .navbar-collapse {
+        margin-top: 15px;
+        background: rgba(11, 17, 32, 0.95);
+        padding: 20px;
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .hero {
+        padding-top: 140px;
+        padding-bottom: 60px;
+    }
+
+    .hero-title {
+        font-size: 2.4rem;
+    }
+
+    .hero-quote {
+        font-size: 1.1rem;
+    }
+
+    .oval-search-bar {
+        border-radius: 30px;
+        padding: 12px 18px;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .oval-search-bar .search-category-select,
+    .oval-search-bar .search-input-group,
+    .oval-search-bar .catalog-btn-wrapper {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 8px 0;
+    }
+
+    .oval-search-bar .catalog-btn-wrapper {
+        border-bottom: none;
+    }
+
+    .leaderboard-podium {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .podium-card {
+        width: 100%;
+        max-width: 380px;
+        margin-bottom: 25px;
+        transform: none !important;
+    }
+
+    .podium-card.gold {
+        order: 1;
+    }
+    
+    .podium-card.silver {
+        order: 2;
+    }
+
+    .podium-card.bronze {
+        order: 3;
+    }
+}
+
+/* Mobile Devices */
+@media (max-width: 576px) {
+    .hero-title {
+        font-size: 1.8rem;
+    }
+
+    .expo-badge-top {
+        font-size: 0.8rem;
+        padding: 6px 14px;
+    }
+
+    .hero-quote {
+        font-size: 1rem;
+    }
+
+    .time-card {
+        padding: 15px 10px;
+    }
+
+    .time-card h1 {
+        font-size: 1.8rem;
+    }
+
+    .project-card {
+        margin-bottom: 20px;
+    }
+
+    .modal-dialog {
+        margin: 10px;
+    }
+
+    .catalog-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
