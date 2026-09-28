@@ -75,10 +75,13 @@ async function runTests() {
     if (loginRes.status !== 200 || !loginRes.body.token) throw new Error('Login failed');
 
     // Login as Admin
-    const adminLoginRes = await request('POST', '/api/auth/login', {
+    console.log('\n3b. Testing POST /api/admin/login...');
+    const adminLoginRes = await request('POST', '/api/admin/login', {
       email: 'admin@expo.com',
       password: 'admin123'
     });
+    console.log(`Status: ${adminLoginRes.status}`, `Admin Token received: ${adminLoginRes.body.token ? 'YES' : 'NO'}`);
+    if (adminLoginRes.status !== 200 || !adminLoginRes.body.token) throw new Error('Admin login failed');
     const adminToken = adminLoginRes.body.token;
 
     // 4. Create/Get Projects

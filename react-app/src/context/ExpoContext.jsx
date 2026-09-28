@@ -163,7 +163,7 @@ export function ExpoProvider({ children }) {
   const loginAdmin = async (emailOrUsername, password) => {
     const email = (emailOrUsername === 'admin' || emailOrUsername === 'admin@expo') ? 'admin@expo.com' : emailOrUsername;
     try {
-      const res = await api.login(email, password);
+      const res = await api.loginAdmin(email, password);
       if (res.token && res.user && res.user.role === 'admin') {
         setAuthSession(res.token, res.user);
         setToken(res.token);

@@ -7,10 +7,18 @@ const connectDB = require('./config/db');
 // Load env vars
 dotenv.config();
 
-// Connect to local MongoDB
-connectDB();
-
 const app = express();
+
+// Ensure DB is connected for serverless and local requests
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    console.error('Database middleware error:', err);
+    res.status(500).json({ message: 'Database Connection Error' });
+  }
+});
 
 // Dynamic Production CORS Configuration
 const frontendUrl = process.env.FRONTEND_URL || process.env.CLIENT_URL;
@@ -31,11 +39,13 @@ app.use(cors({
   },
   credentials: true
 }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Route Mounts
 app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/projects', require('./routes/projectRoutes'));
 app.use('/api/votes', require('./routes/voteRoutes'));
 app.use('/api/feedback', require('./routes/feedbackRoutes'));
@@ -101,10 +111,16 @@ app.use((err, req, res, next) => {
   });
 });
 
-const PORT = process.env.PORT || 5000;
-const HOST = process.env.HOST || '0.0.0.0';
+// Start local HTTP server if executed directly
+if (require.main === module) {
+  const PORT = process.env.PORT || 5000;
+  const HOST = process.env.HOST || '0.0.0.0';
 
-app.listen(PORT, HOST, () => {
-  console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on http://${HOST}:${PORT}`);
-  console.log(`Health check: /api/health`);
-});
+  app.listen(PORT, HOST, () => {
+    console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on http://${HOST}:${PORT}`);
+    console.log(`Health check: /api/health`);
+  });
+}
+
+// Export Express app for Vercel Serverless Functions
+module.exports = app;
