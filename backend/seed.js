@@ -138,21 +138,33 @@ const seedData = async () => {
     await mongoose.connect(mongoUri);
     console.log('MongoDB connected for seeding successfully');
 
-    // Check & Create Admin User
+    // Check & Create/Update Admin User (Idempotent)
     const adminEmail = 'admin@expo.com';
-    let adminUser = await User.findOne({ email: adminEmail.toLowerCase() });
+    const adminSalt = await bcrypt.genSalt(10);
+    const adminPasswordHash = await bcrypt.hash('admin123', adminSalt);
+
+    let adminUser = await User.findOne({
+      $or: [
+        { email: adminEmail },
+        { role: 'admin' }
+      ]
+    });
+
     if (!adminUser) {
-      const adminSalt = await bcrypt.genSalt(10);
-      const adminPassword = await bcrypt.hash('admin123', adminSalt);
       adminUser = await User.create({
         name: 'System Admin',
         email: adminEmail,
-        password: adminPassword,
+        password: adminPasswordHash,
         role: 'admin'
       });
       console.log(`Admin created: ${adminUser.email} / admin123 (role: admin)`);
     } else {
-      console.log(`Admin checked: ${adminUser.email} already exists`);
+      adminUser.name = adminUser.name || 'System Admin';
+      adminUser.email = adminEmail;
+      adminUser.password = adminPasswordHash;
+      adminUser.role = 'admin';
+      await adminUser.save();
+      console.log(`Admin updated safely: ${adminUser.email} / admin123 (role: admin)`);
     }
 
     // Check & Create Test Voter User
