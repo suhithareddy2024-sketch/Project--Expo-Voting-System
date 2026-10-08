@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { initialProjects, initialCategories, defaultExpoSettings } from '../data/projects';
 import api, { getToken, getStoredUser, setAuthSession, clearAuthSession } from '../services/api';
+import AuthModal from '../components/AuthModal';
 
 const ExpoContext = createContext();
 
@@ -71,6 +72,41 @@ export function ExpoProvider({ children }) {
     return ids;
   });
 
+  // 10. Auth Modal Control & Action Interception State
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authPendingCallback, setAuthPendingCallback] = useState(null);
+
+  const openAuthModal = (callback = null) => {
+    if (typeof callback === 'function') {
+      setAuthPendingCallback(() => callback);
+    } else {
+      setAuthPendingCallback(null);
+    }
+    setIsAuthModalOpen(true);
+  };
+
+  const closeAuthModal = () => {
+    setIsAuthModalOpen(false);
+    setAuthPendingCallback(null);
+  };
+
+  const handleAuthModalSuccess = (authenticatedUser) => {
+    if (authPendingCallback && typeof authPendingCallback === 'function') {
+      const cb = authPendingCallback;
+      setAuthPendingCallback(null);
+      setTimeout(() => cb(authenticatedUser), 100);
+    }
+  };
+
+  const requireAuth = (actionCallback) => {
+    if (user && token) {
+      if (typeof actionCallback === 'function') actionCallback();
+      return true;
+    }
+    openAuthModal(actionCallback);
+    return false;
+  };
+
   // Normalize project object so both .id and ._id are accessible
   const normalizeProject = (p) => ({
     ...p,
@@ -108,9 +144,24 @@ export function ExpoProvider({ children }) {
     }
   }, []);
 
-  // Initial Load
+  // Initial Load & Session Check
   useEffect(() => {
     fetchBackendData();
+    const checkUserSession = async () => {
+      const storedToken = getToken();
+      if (storedToken) {
+        try {
+          const res = await api.getMe();
+          if (res.success && res.user) {
+            setUser(res.user);
+            setIsAdminLoggedIn(res.user.role === 'admin');
+          }
+        } catch (e) {
+          console.warn('Session check note:', e.message);
+        }
+      }
+    };
+    checkUserSession();
   }, [fetchBackendData]);
 
   // Sync settings & categories to localStorage
@@ -144,6 +195,31 @@ export function ExpoProvider({ children }) {
     }
   };
 
+  const sendOtp = async (email) => {
+    try {
+      const res = await api.sendOtp(email);
+      return res;
+    } catch (err) {
+      return { success: false, message: err.message || 'Failed to send OTP' };
+    }
+  };
+
+  const verifyOtp = async (email, otp, name = '', password = '') => {
+    try {
+      const res = await api.verifyOtp(email, otp, name, password);
+      if (res.token && res.user) {
+        setAuthSession(res.token, res.user);
+        setToken(res.token);
+        setUser(res.user);
+        setIsAdminLoggedIn(res.user.role === 'admin');
+        return { success: true, user: res.user };
+      }
+      return { success: false, message: res.message || 'OTP verification failed' };
+    } catch (err) {
+      return { success: false, message: err.message || 'OTP verification failed' };
+    }
+  };
+
   const register = async (name, email, password, role = 'user') => {
     try {
       const res = await api.register(name, email, password, role);
@@ -161,7 +237,7 @@ export function ExpoProvider({ children }) {
   };
 
   const loginAdmin = async (emailOrUsername, password) => {
-    const email = (emailOrUsername === 'admin' || emailOrUsername === 'admin@expo') ? 'admin@expo.com' : emailOrUsername;
+    const email = emailOrUsername ? emailOrUsername.trim().toLowerCase() : '';
     try {
       const res = await api.loginAdmin(email, password);
       if (res.token && res.user && res.user.role === 'admin') {
@@ -420,6 +496,8 @@ export function ExpoProvider({ children }) {
         reviews,
         user,
         token,
+        isAuthenticated: Boolean(user && token),
+        isVerified: Boolean(user && user.isVerified),
         isAdminLoggedIn,
         searchQuery,
         setSearchQuery,
@@ -427,6 +505,8 @@ export function ExpoProvider({ children }) {
         setSelectedCategory,
         activeTransition,
         login,
+        sendOtp,
+        verifyOtp,
         register,
         loginAdmin,
         logout,
@@ -446,10 +526,19 @@ export function ExpoProvider({ children }) {
         triggerTransition,
         triggerCategoryAnimation,
         getCategoryAnimation,
-        setActiveTransition
+        setActiveTransition,
+        isAuthModalOpen,
+        openAuthModal,
+        closeAuthModal,
+        requireAuth
       }}
     >
       {children}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={closeAuthModal}
+        onSuccess={handleAuthModalSuccess}
+      />
     </ExpoContext.Provider>
   );
 }

@@ -77,8 +77,8 @@ async function runTests() {
     // Login as Admin
     console.log('\n3b. Testing POST /api/admin/login...');
     const adminLoginRes = await request('POST', '/api/admin/login', {
-      email: 'admin@expo.com',
-      password: 'admin123'
+      email: 'karrisuhithareddy.24.it@anits.edu.in',
+      password: 'anits148'
     });
     console.log(`Status: ${adminLoginRes.status}`, `Admin Token received: ${adminLoginRes.body.token ? 'YES' : 'NO'}`);
     if (adminLoginRes.status !== 200 || !adminLoginRes.body.token) throw new Error('Admin login failed');

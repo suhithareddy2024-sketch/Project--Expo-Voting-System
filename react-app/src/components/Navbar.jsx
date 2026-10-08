@@ -3,7 +3,7 @@ import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useExpo } from '../context/ExpoContext';
 
 export default function Navbar() {
-  const { expoSettings, user, isAdminLoggedIn, logout } = useExpo();
+  const { expoSettings, user, isAdminLoggedIn, logout, openAuthModal } = useExpo();
   const [navOpen, setNavOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
@@ -68,9 +68,21 @@ export default function Navbar() {
             </li>
             {user && !isAdminLoggedIn && (
               <li className="nav-item ms-lg-2">
-                <span className="badge bg-dark-glass text-cyan border border-cyan px-3 py-2 rounded-pill small">
-                  <i className="fa-solid fa-user-check me-1"></i> {user.name || user.email}
+                <span className="badge bg-success bg-opacity-20 text-success border border-success px-3 py-2 rounded-pill small d-flex align-items-center gap-1 shadow-sm">
+                  <i className="fa-solid fa-circle-check text-success"></i>
+                  <span>Verified: {user.email || user.name}</span>
                 </span>
+              </li>
+            )}
+            {!user && (
+              <li className="nav-item ms-lg-2">
+                <button
+                  type="button"
+                  className="btn btn-outline-cyan btn-sm px-3 rounded-pill"
+                  onClick={() => { openAuthModal(); setNavOpen(false); }}
+                >
+                  <i className="fa-solid fa-envelope-circle-check me-1"></i> Verify Email (OTP)
+                </button>
               </li>
             )}
             <li className="nav-item ms-lg-2">

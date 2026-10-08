@@ -4,8 +4,10 @@ const userSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      required: [true, 'Please provide a name'],
-      trim: true
+      trim: true,
+      default: function () {
+        return this.email ? this.email.split('@')[0].replace(/[._]/g, ' ') : 'ANITS Student';
+      }
     },
     email: {
       type: String,
@@ -13,20 +15,31 @@ const userSchema = new mongoose.Schema(
       unique: true,
       lowercase: true,
       trim: true,
-      match: [
-        /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
-        'Please provide a valid email address'
-      ]
+      validate: {
+        validator: function (v) {
+          if (!v) return false;
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          return emailRegex.test(v.toLowerCase().trim());
+        },
+        message: 'Please provide a valid email address.'
+      }
     },
     password: {
       type: String,
-      required: [true, 'Please provide a password'],
-      minlength: [6, 'Password must be at least 6 characters']
+      required: false,
+      default: 'ANITS_SECURE_AUTH_NOPASS'
     },
     role: {
       type: String,
       enum: ['user', 'admin'],
       default: 'user'
+    },
+    isVerified: {
+      type: Boolean,
+      default: false
+    },
+    lastLogin: {
+      type: Date
     }
   },
   {

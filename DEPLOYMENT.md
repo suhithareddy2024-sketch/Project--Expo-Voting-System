@@ -78,6 +78,3 @@ To seed initial projects and admin account into your MongoDB Atlas cloud databas
    cd backend
    npm run seed
    ```
-3. Created Seed Accounts:
-   * **System Admin**: `admin@expo.com` / Password: `admin123`
-   * **Test Voter**: `test@example.com` / Password: `123456`

@@ -138,50 +138,33 @@ const seedData = async () => {
     await mongoose.connect(mongoUri);
     console.log('MongoDB connected for seeding successfully');
 
-    // Check & Create/Update Admin User (Idempotent)
-    const adminEmail = 'admin@expo.com';
-    const adminSalt = await bcrypt.genSalt(10);
-    const adminPasswordHash = await bcrypt.hash('admin123', adminSalt);
+    // Delete legacy sample admin and voter users if they exist
+    await User.deleteMany({ email: { $in: ['admin@expo.com', 'test@example.com', 'voter@example.com'] } });
 
-    let adminUser = await User.findOne({
-      $or: [
-        { email: adminEmail },
-        { role: 'admin' }
-      ]
-    });
+    // Check & Create/Update Official Admin User
+    const adminEmail = 'karrisuhithareddy.24.it@anits.edu.in';
+    const adminSalt = await bcrypt.genSalt(10);
+    const adminPasswordHash = await bcrypt.hash('anits148', adminSalt);
+
+    let adminUser = await User.findOne({ email: adminEmail });
 
     if (!adminUser) {
       adminUser = await User.create({
-        name: 'System Admin',
+        name: 'Admin',
         email: adminEmail,
         password: adminPasswordHash,
-        role: 'admin'
+        role: 'admin',
+        isVerified: true
       });
-      console.log(`Admin created: ${adminUser.email} / admin123 (role: admin)`);
+      console.log(`Admin created: ${adminUser.email} (role: admin)`);
     } else {
-      adminUser.name = adminUser.name || 'System Admin';
+      adminUser.name = 'Admin';
       adminUser.email = adminEmail;
       adminUser.password = adminPasswordHash;
       adminUser.role = 'admin';
+      adminUser.isVerified = true;
       await adminUser.save();
-      console.log(`Admin updated safely: ${adminUser.email} / admin123 (role: admin)`);
-    }
-
-    // Check & Create Test Voter User
-    const voterEmail = 'test@example.com';
-    let voterUser = await User.findOne({ email: voterEmail.toLowerCase() });
-    if (!voterUser) {
-      const userSalt = await bcrypt.genSalt(10);
-      const userPassword = await bcrypt.hash('123456', userSalt);
-      voterUser = await User.create({
-        name: 'Test Voter',
-        email: voterEmail,
-        password: userPassword,
-        role: 'user'
-      });
-      console.log(`Test voter created: ${voterUser.email} / 123456 (role: user)`);
-    } else {
-      console.log(`Test voter checked: ${voterUser.email} already exists`);
+      console.log(`Admin updated: ${adminUser.email} (role: admin)`);
     }
 
     // Check & Create Projects (Idempotent by title)

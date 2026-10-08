@@ -134,14 +134,10 @@ npm install
 ```
 
 ### 3. Database Seeding & Admin Setup
-Seed the initial project dataset and default test accounts:
+Seed the initial project dataset and initialize the database:
 ```bash
 npm run seed
 ```
-
-**Created Seed Accounts**:
-- **System Admin**: `admin@expo.com` / Password: `admin123`
-- **Test Voter**: `test@example.com` / Password: `123456`
 
 Start the backend development server:
 ```bash

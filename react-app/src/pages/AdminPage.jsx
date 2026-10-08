@@ -23,8 +23,8 @@ export default function AdminPage() {
   } = useExpo();
 
   // Login form state
-  const [username, setUsername] = useState('admin@expo.com');
-  const [password, setPassword] = useState('admin123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
 
@@ -59,7 +59,7 @@ export default function AdminPage() {
     try {
       const res = await loginAdmin(username.trim(), password);
       if (!res.success) {
-        setLoginError(res.message || 'Invalid Admin Email or Password. Use admin@expo.com / admin123');
+        setLoginError(res.message || 'Invalid Admin Email or Password.');
       }
     } catch (err) {
       setLoginError(err.message || 'Admin login failed');
@@ -238,7 +238,7 @@ export default function AdminPage() {
             <i className="fa-solid fa-user-shield fs-1 text-cyan mb-2"></i>
             <h3 className="fw-bold text-white">Admin Authentication</h3>
             <p className="text-light-50 small">
-              Default Admin: <code>admin@expo.com</code> | password <code>admin123</code>
+              Please enter your administrator credentials to access the control panel.
             </p>
           </div>
           {loginError && (

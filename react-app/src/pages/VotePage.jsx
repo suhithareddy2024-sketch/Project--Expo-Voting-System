@@ -14,7 +14,10 @@ export default function VotePage() {
     user,
     token,
     login,
-    register
+    sendOtp,
+    verifyOtp,
+    requireAuth,
+    openAuthModal
   } = useExpo();
   const navigate = useNavigate();
 
@@ -37,10 +40,14 @@ export default function VotePage() {
   const [errorMessage, setErrorMessage] = useState('');
 
   // Auth Modal/Inline state if voter is not logged in
-  const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
+  const [authMode, setAuthMode] = useState('otp'); // 'otp' | 'password'
   const [authName, setAuthName] = useState('');
-  const [authEmail, setAuthEmail] = useState('test@example.com');
-  const [authPassword, setAuthPassword] = useState('123456');
+  const [authEmail, setAuthEmail] = useState('');
+  const [otp, setOtp] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpNotice, setOtpNotice] = useState('');
+  const [verifiedNotice, setVerifiedNotice] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
 
@@ -68,23 +75,76 @@ export default function VotePage() {
     }
   }, [projectId, token, hasVotedForProject, checkUserVotedOnBackend]);
 
-  const handleVoterAuth = async (e) => {
-    e.preventDefault();
+  const handleSendOtp = async (e) => {
+    if (e) e.preventDefault();
+    setAuthError('');
+    setOtpNotice('');
+    setVerifiedNotice('');
+    setDevOtpCode('');
+
+    const cleanEmail = authEmail.trim().toLowerCase();
+    if (!cleanEmail) {
+      setAuthError('Please enter your email address.');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      setAuthError('Please enter a valid email address.');
+      return;
+    }
+
+    setAuthLoading(true);
+    try {
+      const res = await sendOtp(cleanEmail);
+      if (res.success) {
+        setOtpSent(true);
+        setOtpNotice(res.message || `OTP sent successfully to ${cleanEmail}`);
+      } else {
+        setAuthError(res.message || 'Failed to send OTP. Please check your email.');
+      }
+    } catch (err) {
+      setAuthError(err.message || 'Error sending OTP.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e, codeOverride = null) => {
+    if (e) e.preventDefault();
+    setAuthError('');
+    setVerifiedNotice('');
+
+    const codeToVerify = (codeOverride || otp).trim();
+
+    if (!codeToVerify || codeToVerify.length !== 6) {
+      setAuthError('Please enter the 6-digit OTP code sent to your email.');
+      return;
+    }
+
+    setAuthLoading(true);
+    try {
+      const res = await verifyOtp(authEmail.trim().toLowerCase(), codeToVerify, authName.trim(), authPassword);
+      if (res.success) {
+        setVerifiedNotice(`Verified! Email ${authEmail} is authenticated.`);
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 3000);
+      } else {
+        setAuthError(res.message || 'Invalid or expired OTP code.');
+      }
+    } catch (err) {
+      setAuthError(err.message || 'OTP verification failed.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handlePasswordLogin = async (e) => {
+    if (e) e.preventDefault();
     setAuthError('');
     setAuthLoading(true);
     try {
-      let result;
-      if (authMode === 'login') {
-        result = await login(authEmail.trim(), authPassword);
-      } else {
-        if (!authName.trim()) {
-          setAuthError('Please enter your full name');
-          setAuthLoading(false);
-          return;
-        }
-        result = await register(authName.trim(), authEmail.trim(), authPassword, 'user');
-      }
-
+      const result = await login(authEmail.trim(), authPassword);
       if (!result.success) {
         setAuthError(result.message || 'Authentication failed');
       }
@@ -95,20 +155,7 @@ export default function VotePage() {
     }
   };
 
-  const handleSubmitVote = async (e) => {
-    e.preventDefault();
-    setErrorMessage('');
-
-    if (!user || !token) {
-      setErrorMessage('Please login or authenticate below to submit your official vote.');
-      return;
-    }
-
-    if (!appreciation.trim() || !review.trim() || !suggestion.trim()) {
-      alert('Please fill out all required fields (Appreciation, Review, and Suggestions).');
-      return;
-    }
-
+  const executeVoteSubmission = async () => {
     setSubmitting(true);
     try {
       await castVote(projectId, {
@@ -130,6 +177,23 @@ export default function VotePage() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleSubmitVote = async (e) => {
+    e.preventDefault();
+    setErrorMessage('');
+
+    if (!appreciation.trim() || !review.trim() || !suggestion.trim()) {
+      alert('Please fill out all required fields (Appreciation, Review, and Suggestions).');
+      return;
+    }
+
+    if (!user || !token) {
+      requireAuth(() => executeVoteSubmission());
+      return;
+    }
+
+    executeVoteSubmission();
   };
 
   const handleDownloadReceipt = () => {
@@ -253,92 +317,205 @@ export default function VotePage() {
                   </div>
                 )}
 
-                {/* Voter Quick Login / Registration Box if Not Logged In */}
-                {!user && (
+                {/* Verified Notification Alert */}
+                {verifiedNotice && (
+                  <div className="alert alert-success border border-success bg-success bg-opacity-20 p-3 rounded-4 shadow-lg text-center mb-4">
+                    <h4 className="fw-bold text-success mb-1">
+                      <i className="fa-solid fa-circle-check me-2"></i> Verified!
+                    </h4>
+                    <p className="mb-0 text-white">{verifiedNotice}</p>
+                  </div>
+                )}
+
+                {/* Voter Verified Status Box when Logged In */}
+                {user ? (
+                  <div className="alert alert-success border border-success bg-dark-glass p-3 rounded-4 mb-4 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <div className="d-flex align-items-center gap-3">
+                      <div className="rounded-circle bg-success bg-opacity-20 border border-success p-2 d-flex align-items-center justify-content-center" style={{ width: '45px', height: '45px' }}>
+                        <i className="fa-solid fa-circle-check text-success fs-4"></i>
+                      </div>
+                      <div>
+                        <h6 className="mb-0 text-white fw-bold">Verified Voter Identity Confirmed</h6>
+                        <p className="mb-0 text-light-50 small">
+                          Voter Email: <strong className="text-cyan">{user.email || user.name}</strong>
+                        </p>
+                      </div>
+                    </div>
+                    <span className="badge bg-success bg-opacity-25 text-success border border-success px-3 py-2 rounded-pill small">
+                      <i className="fa-solid fa-shield-check me-1"></i> Authorized to Vote
+                    </span>
+                  </div>
+                ) : (
+                  /* Voter Quick OTP / Authentication Box if Not Logged In */
                   <div className="p-4 rounded-4 bg-dark-glass border border-cyan mb-4">
                     <div className="d-flex justify-content-between align-items-center mb-3">
                       <h5 className="text-white fw-bold mb-0">
-                        <i className="fa-solid fa-id-card text-cyan me-2"></i> Voter Authentication Required
+                        <i className="fa-solid fa-shield-halved text-cyan me-2"></i> Voter Authentication Layer
                       </h5>
                       <div className="btn-group btn-group-sm">
                         <button
                           type="button"
-                          className={`btn ${authMode === 'login' ? 'btn-cyan' : 'btn-outline-cyan'}`}
-                          onClick={() => setAuthMode('login')}
+                          className={`btn ${authMode === 'otp' ? 'btn-cyan' : 'btn-outline-cyan'}`}
+                          onClick={() => { setAuthMode('otp'); setAuthError(''); }}
                         >
-                          Login
+                          <i className="fa-solid fa-key me-1"></i> OTP Mail Verification
                         </button>
                         <button
                           type="button"
-                          className={`btn ${authMode === 'register' ? 'btn-cyan' : 'btn-outline-cyan'}`}
-                          onClick={() => setAuthMode('register')}
+                          className={`btn ${authMode === 'password' ? 'btn-cyan' : 'btn-outline-cyan'}`}
+                          onClick={() => { setAuthMode('password'); setAuthError(''); }}
                         >
-                          Register
+                          <i className="fa-solid fa-lock me-1"></i> Password Login
                         </button>
                       </div>
                     </div>
-                    <p className="text-light-50 small mb-3">
-                      To ensure fair 1-vote-per-project decentralized integrity, please sign in or register below.
-                      (Default test voter: <code>test@example.com</code> / <code>123456</code>)
-                    </p>
+
+                    <div className="alert alert-info py-2 px-3 small mb-3 border-0 bg-info bg-opacity-10 text-info rounded-3">
+                      <i className="fa-solid fa-circle-info me-1"></i> Enter your registered email to receive an official 6-digit OTP code to unlock voting.
+                    </div>
+
                     {authError && (
-                      <div className="alert alert-danger p-2 small mb-3">{authError}</div>
+                      <div className="alert alert-danger p-2 small mb-3 border-0 rounded-3">{authError}</div>
                     )}
-                    <form onSubmit={handleVoterAuth}>
-                      <div className="row g-2">
-                        {authMode === 'register' && (
-                          <div className="col-md-4">
+
+                    {otpNotice && (
+                      <div className="alert alert-success p-2 small mb-3 border-0 rounded-3">
+                        <i className="fa-solid fa-circle-check me-1"></i> {otpNotice}
+                      </div>
+                    )}
+
+                    {authMode === 'otp' ? (
+                      !otpSent ? (
+                        <form onSubmit={handleSendOtp}>
+                          <div className="row g-2 align-items-center">
+                            <div className="col-md-8">
+                              <input
+                                type="email"
+                                className="form-control glass-input form-control-sm"
+                                placeholder="Enter email (e.g. karrisuhithareddy.24.it@anits.edu.in)"
+                                value={authEmail}
+                                onChange={(e) => setAuthEmail(e.target.value)}
+                                required
+                              />
+                            </div>
+                            <div className="col-md-4">
+                              <button
+                                type="submit"
+                                className="btn btn-gradient-primary btn-sm w-100 rounded-pill fw-bold"
+                                disabled={authLoading}
+                              >
+                                {authLoading ? (
+                                  <>
+                                    <span className="spinner-border spinner-border-sm me-1" role="status"></span> Sending...
+                                  </>
+                                ) : (
+                                  <>
+                                    <i className="fa-solid fa-paper-plane me-1"></i> Send OTP to Mail
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        </form>
+                      ) : (
+                        <form onSubmit={handleVerifyOtp}>
+                          <div className="row g-2">
+                            <div className="col-md-4">
+                              <input
+                                type="text"
+                                className="form-control glass-input form-control-sm"
+                                placeholder="Your Name (Optional)"
+                                value={authName}
+                                onChange={(e) => setAuthName(e.target.value)}
+                              />
+                            </div>
+                            <div className="col-md-4">
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                className="form-control glass-input form-control-sm text-center fw-bold fs-5"
+                                style={{ letterSpacing: '4px', fontFamily: 'monospace' }}
+                                placeholder="• • • • • •"
+                                maxLength="6"
+                                value={otp}
+                                onChange={(e) => {
+                                  const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                                  setOtp(val);
+                                  if (val.length === 6) {
+                                    handleVerifyOtp(null, val);
+                                  }
+                                }}
+                                required
+                                autoFocus
+                              />
+                            </div>
+                            <div className="col-md-4">
+                              <button
+                                type="submit"
+                                className="btn btn-cyan btn-sm w-100 rounded-pill fw-bold text-dark"
+                                disabled={authLoading || otp.length !== 6}
+                              >
+                                {authLoading ? (
+                                  <>
+                                    <span className="spinner-border spinner-border-sm me-1" role="status"></span> Verifying...
+                                  </>
+                                ) : (
+                                  <>
+                                    <i className="fa-solid fa-check-circle me-1"></i> Verify OTP Code
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                          <div className="d-flex justify-content-between align-items-center mt-2 small">
+                            <span className="text-light-50">
+                              Sent to: <strong className="text-cyan">{authEmail}</strong>
+                            </span>
+                            <button
+                              type="button"
+                              className="btn btn-link btn-sm text-cyan p-0 text-decoration-none"
+                              onClick={() => { setOtpSent(false); setOtp(''); }}
+                            >
+                              <i className="fa-solid fa-pen me-1"></i> Change Email / Resend
+                            </button>
+                          </div>
+                        </form>
+                      )
+                    ) : (
+                      <form onSubmit={handlePasswordLogin}>
+                        <div className="row g-2">
+                          <div className="col-md-5">
                             <input
-                              type="text"
+                              type="email"
                               className="form-control glass-input form-control-sm"
-                              placeholder="Your Name"
-                              value={authName}
-                              onChange={(e) => setAuthName(e.target.value)}
+                              placeholder="Email address"
+                              value={authEmail}
+                              onChange={(e) => setAuthEmail(e.target.value)}
                               required
                             />
                           </div>
-                        )}
-                        <div className={authMode === 'register' ? 'col-md-4' : 'col-md-6'}>
-                          <input
-                            type="email"
-                            className="form-control glass-input form-control-sm"
-                            placeholder="Email address"
-                            value={authEmail}
-                            onChange={(e) => setAuthEmail(e.target.value)}
-                            required
-                          />
+                          <div className="col-md-4">
+                            <input
+                              type="password"
+                              className="form-control glass-input form-control-sm"
+                              placeholder="Password"
+                              value={authPassword}
+                              onChange={(e) => setAuthPassword(e.target.value)}
+                              required
+                            />
+                          </div>
+                          <div className="col-md-3">
+                            <button
+                              type="submit"
+                              className="btn btn-gradient-primary btn-sm w-100 rounded-pill fw-bold"
+                              disabled={authLoading}
+                            >
+                              {authLoading ? 'Signing In...' : 'Sign In'}
+                            </button>
+                          </div>
                         </div>
-                        <div className={authMode === 'register' ? 'col-md-4' : 'col-md-6'}>
-                          <input
-                            type="password"
-                            className="form-control glass-input form-control-sm"
-                            placeholder="Password"
-                            value={authPassword}
-                            onChange={(e) => setAuthPassword(e.target.value)}
-                            required
-                          />
-                        </div>
-                        <div className="col-12 text-end mt-2">
-                          <button
-                            type="submit"
-                            className="btn btn-gradient-primary btn-sm px-4 rounded-pill fw-bold"
-                            disabled={authLoading}
-                          >
-                            {authLoading ? (
-                              'Authenticating...'
-                            ) : authMode === 'login' ? (
-                              <>
-                                <i className="fa-solid fa-right-to-bracket me-1"></i> Sign In to Vote
-                              </>
-                            ) : (
-                              <>
-                                <i className="fa-solid fa-user-plus me-1"></i> Register Voter Account
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    </form>
+                      </form>
+                    )}
                   </div>
                 )}
 

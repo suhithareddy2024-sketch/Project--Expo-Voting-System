@@ -1,0 +1,84 @@
+[
+  {
+    "_id": "101",
+    "title": "AI Water Detection System",
+    "category": "AI",
+    "team": "21",
+    "image": "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=800&q=80",
+    "description": "Smart AI powered system for water quality detection, contamination monitoring and real-time safety alerts.",
+    "longDescription": "This project provides a smart real-time sensor network connected to AI predictive models to identify biological and chemical contaminants in water sources. Designed for rural communities, industrial discharge monitoring, and municipal water treatment plants.",
+    "members": [
+      "Alex Johnson (Team Leader)",
+      "Sophia Chen (AI Developer)",
+      "Mark Davis (IoT Hardware)"
+    ],
+    "highlights": [
+      { "title": "IoT Sensors Integration", "desc": "Continuous telemetry & data logging", "icon": "bi bi-cpu", "color": "text-cyan" },
+      { "title": "AI Predictive Models", "desc": "Early contamination warning algorithms", "icon": "bi bi-diagram-3", "color": "text-success" },
+      { "title": "Decentralized Verification", "desc": "Cryptographic vote integrity audit", "icon": "bi bi-shield-check", "color": "text-warning" },
+      { "title": "Instant Notifications", "desc": "SMS & cloud dashboard alerts", "icon": "bi bi-bell-fill", "color": "text-danger" }
+    ],
+    "votes": 421
+  },
+  {
+    "_id": "102",
+    "title": "Smart Farming Irrigation",
+    "category": "IoT",
+    "team": "08",
+    "image": "https://images.unsplash.com/photo-1592982537447-7440770cbfc9?auto=format&fit=crop&w=800&q=80",
+    "description": "IoT based irrigation monitoring with automatic moisture sensing and soil analysis.",
+    "longDescription": "Automated precision agriculture platform utilizing subterranean moisture sensors, local weather forecasting telemetry, and smart micro-valves to reduce agricultural water waste by 40%.",
+    "members": [
+      "Rachel Green (Team Leader)",
+      "David Miller (Embedded Systems)",
+      "Elena Rostova (Agritech Specialist)"
+    ],
+    "highlights": [
+      { "title": "Soil Moisture Probes", "desc": "Sub-surface multi-depth sensor grid", "icon": "bi bi-moisture", "color": "text-cyan" },
+      { "title": "Solar Powered Node", "desc": "Off-grid autonomous solar energy unit", "icon": "bi bi-sun", "color": "text-warning" },
+      { "title": "Cloud Analytics", "desc": "Historical soil health & yield predictions", "icon": "bi bi-cloud-check", "color": "text-success" },
+      { "title": "Automated Valves", "desc": "Smart flow control with zero manual effort", "icon": "bi bi-sliders", "color": "text-info" }
+    ],
+    "votes": 398
+  },
+  {
+    "_id": "103",
+    "title": "Autonomous Rescue Robot",
+    "category": "Robotics",
+    "team": "17",
+    "image": "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?auto=format&fit=crop&w=800&q=80",
+    "description": "Robotic navigation unit designed for hazardous environments, disaster relief, and survivor localization.",
+    "longDescription": "A ruggedized, tracked autonomous ground vehicle equipped with thermal imaging, LIDAR mapping, and CO2 detectors to locate victims trapped in collapsed structures or hazardous chemical environments without endangering first responders.",
+    "members": [
+      "Hiroshi Tanaka (Hardware Architect)",
+      "Maya Patel (Robotics SLAM)",
+      "Carlos Ruiz (Power & Telemetry)"
+    ],
+    "highlights": [
+      { "title": "Thermal Sensing", "desc": "FLIR thermal vision for human signature detection", "icon": "bi bi-camera", "color": "text-danger" },
+      { "title": "LIDAR Mapping", "desc": "Real-time 3D point cloud generation", "icon": "bi bi-broadcast", "color": "text-primary" },
+      { "title": "Mesh Radio", "desc": "High-penetration emergency comms link", "icon": "bi bi-router", "color": "text-warning" },
+      { "title": "All-Terrain Tread", "desc": "Traverses 45-degree rubble slopes", "icon": "bi bi-gear-wide-connected", "color": "text-success" }
+    ],
+    "votes": 355
+  },
+  {
+    "_id": "104",
+    "title": "Smart Campus Energy Grid",
+    "category": "IoT",
+    "team": "04",
+    "image": "https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?auto=format&fit=crop&w=800&q=80",
+    "description": "Intelligent solar grid optimizer that balances peak power load dynamically across academic buildings.",
+    "longDescription": "High-efficiency microgrid controller that predicts solar insolation and shifts high-draw HVAC and laboratory equipment power across renewable battery banks.",
+    "members": [
+      "Aarav Sharma (Power Systems)",
+      "Pooja Verma (Energy Analytics)",
+      "Kiran Rao (Smart Metering)"
+    ],
+    "highlights": [
+      { "title": "Peak Load Shaving", "desc": "Reduces peak electricity tariff costs by 32%", "icon": "bi bi-lightning-charge", "color": "text-warning" },
+      { "title": "Solar Forecast", "desc": "Neural net insolation prediction", "icon": "bi bi-sun", "color": "text-cyan" }
+    ],
+    "votes": 310
+  }
+]

@@ -4,20 +4,20 @@ const dotenv = require('dotenv');
 const mongoose = require('mongoose');
 const connectDB = require('./config/db');
 
+const path = require('path');
 // Load env vars
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 const app = express();
 
-// Ensure DB is connected for serverless and local requests
+// Ensure DB connection is attempted without crashing routes on local offline dev
 app.use(async (req, res, next) => {
   try {
     await connectDB();
-    next();
   } catch (err) {
-    console.error('Database middleware error:', err);
-    res.status(500).json({ message: 'Database Connection Error' });
+    // Proceed to route handlers; controllers will use in-memory fallback if needed
   }
+  next();
 });
 
 // Dynamic Production CORS Configuration
@@ -111,10 +111,16 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start local HTTP server if executed directly
 if (require.main === module) {
   const PORT = process.env.PORT || 5000;
   const HOST = process.env.HOST || '0.0.0.0';
+
+  const resendKey = process.env.RESEND_API_KEY;
+  if (!resendKey || resendKey === 're_xxxxxxxxx' || resendKey.includes('your_resend_api_key')) {
+    console.warn('⚠️ [CONFIG NOTICE] RESEND_API_KEY is not set with a real key in backend/.env. Replace re_xxxxxxxxx with your actual Resend API key from resend.com.');
+  } else {
+    console.log('✅ [CONFIG] Resend API Key configured.');
+  }
 
   app.listen(PORT, HOST, () => {
     console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on http://${HOST}:${PORT}`);

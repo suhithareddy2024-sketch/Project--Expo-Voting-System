@@ -5,7 +5,7 @@ import api from '../services/api';
 
 export default function ProjectDetailsPage() {
   const { id } = useParams();
-  const { projects, loading } = useExpo();
+  const { projects, loading, requireAuth } = useExpo();
   const [project, setProject] = useState(null);
   const [fetching, setFetching] = useState(false);
   const navigate = useNavigate();
@@ -113,12 +113,13 @@ export default function ProjectDetailsPage() {
                 </span>
               </div>
 
-              <Link
-                to={`/vote?id=${projectId}`}
+              <button
+                type="button"
+                onClick={() => requireAuth(() => navigate(`/vote?id=${projectId}`))}
                 className="btn btn-gradient-primary btn-lg rounded-pill px-5 shadow-lg fw-bold"
               >
                 <i className="fa-solid fa-check-to-slot me-2"></i> Vote For This Project
-              </Link>
+              </button>
             </div>
 
             <div className="col-lg-6 text-center">
@@ -205,12 +206,13 @@ export default function ProjectDetailsPage() {
                 <hr className="border-secondary" />
 
                 <div className="text-center pt-2">
-                  <Link
-                    to={`/vote?id=${projectId}`}
+                  <button
+                    type="button"
+                    onClick={() => requireAuth(() => navigate(`/vote?id=${projectId}`))}
                     className="btn btn-gradient-primary w-100 rounded-pill py-3 fw-bold"
                   >
                     <i className="fa-solid fa-vote-yea me-2"></i> Cast Vote Now
-                  </Link>
+                  </button>
                 </div>
               </div>
             </div>

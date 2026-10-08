@@ -5,8 +5,24 @@ const Feedback = require('../models/Feedback');
 // @desc    Get all projects
 // @route   GET /api/projects
 // @access  Public
+const fallbackProjects = require('../data/fallbackProjects.json');
+const mongoose = require('mongoose');
+
+const isDbReady = () => mongoose.connection.readyState === 1;
+
+// @desc    Get all projects
+// @route   GET /api/projects
+// @access  Public
 const getProjects = async (req, res) => {
   try {
+    if (!isDbReady()) {
+      return res.status(200).json({
+        success: true,
+        count: fallbackProjects.length,
+        data: fallbackProjects
+      });
+    }
+
     const projects = await Project.find({}).sort({ createdAt: -1 });
     res.status(200).json({
       success: true,
@@ -15,7 +31,11 @@ const getProjects = async (req, res) => {
     });
   } catch (error) {
     console.error('Get Projects Error:', error);
-    res.status(500).json({ message: 'Server error fetching projects' });
+    res.status(200).json({
+      success: true,
+      count: fallbackProjects.length,
+      data: fallbackProjects
+    });
   }
 };
 
@@ -24,7 +44,21 @@ const getProjects = async (req, res) => {
 // @access  Public
 const getProjectById = async (req, res) => {
   try {
-    const project = await Project.findById(req.params.id);
+    const id = req.params.id;
+    if (!isDbReady()) {
+      const match = fallbackProjects.find(p => String(p._id) === String(id) || String(p.id) === String(id));
+      if (match) return res.status(200).json({ success: true, data: match });
+      return res.status(404).json({ message: 'Project not found' });
+    }
+
+    let project = null;
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      project = await Project.findById(id);
+    }
+    if (!project) {
+      project = fallbackProjects.find(p => String(p._id) === String(id) || String(p.id) === String(id));
+    }
+
     if (!project) {
       return res.status(404).json({ message: 'Project not found' });
     }
@@ -34,9 +68,8 @@ const getProjectById = async (req, res) => {
     });
   } catch (error) {
     console.error('Get Project By ID Error:', error);
-    if (error.kind === 'ObjectId') {
-      return res.status(404).json({ message: 'Project not found with provided ID' });
-    }
+    const match = fallbackProjects.find(p => String(p._id) === String(req.params.id) || String(p.id) === String(req.params.id));
+    if (match) return res.status(200).json({ success: true, data: match });
     res.status(500).json({ message: 'Server error fetching project details' });
   }
 };

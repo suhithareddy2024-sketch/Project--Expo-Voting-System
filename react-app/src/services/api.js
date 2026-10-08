@@ -134,6 +134,22 @@ export const api = {
       body: { email, password }
     }),
 
+  sendOtp: (email) =>
+    request('/auth/send-otp', {
+      method: 'POST',
+      body: { email }
+    }),
+
+  verifyOtp: (email, otp, name = '', password = '') =>
+    request('/auth/verify-otp', {
+      method: 'POST',
+      body: { email, otp, name, password }
+    }),
+
+  getMe: () => request('/auth/me', { method: 'GET' }),
+
+  logout: () => request('/auth/logout', { method: 'POST' }),
+
   loginAdmin: (email, password) =>
     request('/admin/login', {
       method: 'POST',
