@@ -135,9 +135,7 @@ const sendOtp = async (req, res) => {
 
     const responsePayload = {
       success: true,
-      message: dispatchResult.message || 'OTP sent successfully to your email.',
-      provider: dispatchResult.provider,
-      ...(dispatchResult.devOtp ? { devOtp: dispatchResult.devOtp } : {})
+      message: dispatchResult.message || 'OTP sent successfully to your email.'
     };
 
     res.status(200).json(responsePayload);

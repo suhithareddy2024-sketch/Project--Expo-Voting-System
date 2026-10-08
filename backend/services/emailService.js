@@ -161,14 +161,10 @@ const sendOTPEmail = async (email, otp) => {
     }
   }
 
-  // Strategy 3: Cloud / Demo Fallback
-  // If cloud provider limits outbound SMTP/Resend test domains, return simulated success with devOtp
-  console.log(`ℹ️ [FALLBACK ACTIVATED] OTP generated and logged for ${cleanEmail}: ${otp}`);
+  // If email could not be delivered through configured providers
   return {
-    success: true,
-    provider: 'fallback',
-    devOtp: otp,
-    message: `OTP sent! (Testing fallback: Code is ${otp})`
+    success: false,
+    message: 'Unable to send OTP email. Please ensure your email address is correct and email service is configured.'
   };
 };
 

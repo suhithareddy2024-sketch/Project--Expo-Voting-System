@@ -80,7 +80,6 @@ export default function VotePage() {
     setAuthError('');
     setOtpNotice('');
     setVerifiedNotice('');
-    setDevOtpCode('');
 
     const cleanEmail = authEmail.trim().toLowerCase();
     if (!cleanEmail) {
