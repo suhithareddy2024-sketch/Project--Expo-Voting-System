@@ -3,7 +3,7 @@
  * Connects React frontend to Express/MongoDB backend with automatic JWT Bearer token attachment.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const API_BASE_URL = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
 /**
  * Helper to get clean auth token from storage

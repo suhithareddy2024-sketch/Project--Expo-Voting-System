@@ -22,9 +22,11 @@ const connectDB = async () => {
   }
 
   if (!cached.promise) {
+    const isLocalUri = mongoUri.includes('localhost') || mongoUri.includes('127.0.0.1');
     const opts = {
       bufferCommands: false,
-      serverSelectionTimeoutMS: 2500, // Fast fail in 2.5s if local mongo isn't up
+      serverSelectionTimeoutMS: isLocalUri ? 3000 : 10000,
+      connectTimeoutMS: 15000,
     };
 
     cached.promise = mongoose.connect(mongoUri, opts).then((mongooseInstance) => {

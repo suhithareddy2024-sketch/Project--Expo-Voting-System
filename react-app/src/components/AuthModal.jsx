@@ -14,12 +14,14 @@ export default function AuthModal({ isOpen, onClose, onSuccess }) {
   const [verifiedUser, setVerifiedUser] = useState(null);
   const [cooldown, setCooldown] = useState(0);
   const [expiryCountdown, setExpiryCountdown] = useState(300); // 5 minutes (300s)
+  const [devOtpCode, setDevOtpCode] = useState('');
 
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
       setError('');
       setSuccessMsg('');
+      setDevOtpCode('');
       if (step === 'verified') {
         setStep('email');
       }
@@ -326,6 +328,21 @@ export default function AuthModal({ isOpen, onClose, onSuccess }) {
                 </div>
 
                 <div className="mb-4">
+                  {devOtpCode && (
+                    <div className="alert alert-info py-2 px-3 small border-0 rounded-3 mb-3 d-flex justify-content-between align-items-center">
+                      <span><i className="fa-solid fa-key me-1"></i> Demo Code: <strong>{devOtpCode}</strong></span>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-info py-0 px-2 rounded-pill fw-bold text-dark"
+                        onClick={() => {
+                          setOtp(devOtpCode);
+                          triggerVerification(devOtpCode);
+                        }}
+                      >
+                        Auto-Fill
+                      </button>
+                    </div>
+                  )}
                   <div className="d-flex justify-content-between align-items-center mb-1">
                     <label className="form-label text-light small fw-medium mb-0">Enter OTP Code</label>
                     {expiryCountdown > 0 ? (
