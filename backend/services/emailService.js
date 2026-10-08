@@ -4,48 +4,66 @@ const { Resend } = require('resend');
 const nodemailer = require('nodemailer');
 
 /**
- * Configure Nodemailer SMTP Transporter if credentials exist
+ * Build all possible SMTP transporters for maximum reliability
  */
-const getSmtpTransporter = () => {
+const getSmtpTransporters = () => {
   const user = process.env.EMAIL_USER || process.env.SMTP_USER;
   const pass = process.env.EMAIL_PASS || process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
 
-  if (!user || !pass) return null;
+  if (!user || !pass) {
+    console.error('❌ [CONFIG ERROR] EMAIL_USER or EMAIL_PASS environment variable is missing on server!');
+    return [];
+  }
 
   const cleanUser = user.trim();
   const cleanPass = pass.replace(/\s+/g, '').trim();
 
-  // If user is gmail or institutional Google Workspace (@anits.edu.in)
-  if (cleanUser.includes('@gmail.com') || cleanUser.includes('@anits.edu.in')) {
-    return nodemailer.createTransport({
+  const transporters = [];
+
+  // Config 1: Gmail direct service (Port 465 SSL)
+  transporters.push({
+    name: 'Gmail Service',
+    transport: nodemailer.createTransport({
       service: 'gmail',
-      auth: {
-        user: cleanUser,
-        pass: cleanPass
-      },
-      tls: {
-        rejectUnauthorized: false
-      },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 15000
-    });
-  }
-
-  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
-  const port = parseInt(process.env.SMTP_PORT || '465', 10);
-  const secure = port === 465;
-
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    auth: { user: cleanUser, pass: cleanPass },
-    tls: { rejectUnauthorized: false },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000
+      auth: { user: cleanUser, pass: cleanPass },
+      tls: { rejectUnauthorized: false },
+      connectionTimeout: 8000,
+      greetingTimeout: 8000,
+      socketTimeout: 10000
+    })
   });
+
+  // Config 2: SMTP Port 587 (STARTTLS)
+  transporters.push({
+    name: 'smtp.gmail.com:587',
+    transport: nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false, // STARTTLS
+      auth: { user: cleanUser, pass: cleanPass },
+      tls: { rejectUnauthorized: false },
+      connectionTimeout: 8000,
+      greetingTimeout: 8000,
+      socketTimeout: 10000
+    })
+  });
+
+  // Config 3: SMTP Port 465 (SSL)
+  transporters.push({
+    name: 'smtp.gmail.com:465',
+    transport: nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      auth: { user: cleanUser, pass: cleanPass },
+      tls: { rejectUnauthorized: false },
+      connectionTimeout: 8000,
+      greetingTimeout: 8000,
+      socketTimeout: 10000
+    })
+  });
+
+  return transporters;
 };
 
 /**
@@ -87,9 +105,8 @@ const generateEmailHtml = (email, otp) => {
 /**
  * Send OTP Email
  * Multi-provider strategy:
- * 1. Nodemailer SMTP (Gmail / Custom SMTP)
+ * 1. Nodemailer SMTP (Gmail / Custom SMTP multi-port failover)
  * 2. Resend API if configured
- * 3. Graceful Cloud/Demo Fallback (Logs OTP to console & supplies code for seamless verification)
  *
  * @param {string} email - Recipient email
  * @param {string} otp - 6-digit verification code
@@ -105,12 +122,12 @@ const sendOTPEmail = async (email, otp) => {
   console.log(`   Code: ${otp}`);
   console.log('================================================================\n');
 
-  // Strategy 1: Nodemailer SMTP (Gmail / Custom SMTP)
-  const smtp = getSmtpTransporter();
-  if (smtp) {
+  // Strategy 1: Multi-port Nodemailer SMTP
+  const smtpList = getSmtpTransporters();
+  for (const item of smtpList) {
     try {
       const fromEmail = process.env.EMAIL_FROM || process.env.EMAIL_USER || process.env.SMTP_USER;
-      const info = await smtp.sendMail({
+      const info = await item.transport.sendMail({
         from: `"ANITS Expo Voting" <${fromEmail}>`,
         to: cleanEmail,
         subject: `Your ANITS Expo Voting OTP: ${otp}`,
@@ -118,15 +135,14 @@ const sendOTPEmail = async (email, otp) => {
         html: htmlContent
       });
 
-      console.log('✅ [EMAIL SUCCESS] OTP delivered via SMTP to:', cleanEmail, info.messageId);
+      console.log(`✅ [EMAIL SUCCESS] Delivered via ${item.name} to:`, cleanEmail, info.messageId);
       return {
         success: true,
-        provider: 'smtp',
+        provider: item.name,
         message: 'OTP sent successfully to your email.'
       };
     } catch (smtpErr) {
-      console.warn('⚠️ [SMTP WARNING] Nodemailer failed:', smtpErr.message);
-      // Fall through to next provider
+      console.warn(`⚠️ [SMTP FAIL ${item.name}]:`, smtpErr.message);
     }
   }
 
@@ -146,7 +162,7 @@ const sendOTPEmail = async (email, otp) => {
       });
 
       if (!result.error) {
-        console.log('✅ [EMAIL SUCCESS] OTP delivered via Resend to:', cleanEmail, result.data?.id);
+        console.log('✅ [EMAIL SUCCESS] Delivered via Resend to:', cleanEmail, result.data?.id);
         return {
           success: true,
           provider: 'resend',
@@ -164,7 +180,7 @@ const sendOTPEmail = async (email, otp) => {
   // If email could not be delivered through configured providers
   return {
     success: false,
-    message: 'Unable to send OTP email. Please ensure your email address is correct and email service is configured.'
+    message: 'Unable to send OTP email. Please ensure your email address is correct and EMAIL_USER & EMAIL_PASS are configured.'
   };
 };
 
