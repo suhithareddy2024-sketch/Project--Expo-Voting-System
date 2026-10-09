@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Vote = require('../models/Vote');
 const Project = require('../models/Project');
 const Feedback = require('../models/Feedback');
+const User = require('../models/User');
 
 // @desc    Cast a vote for a project (Strict 1 user, 1 vote globally across entire Expo)
 // @route   POST /api/votes
@@ -22,20 +23,19 @@ const castVote = async (req, res) => {
       }
 
       if (mongoose.isValidObjectId(userId)) {
-        // Check if user has already voted for ANY project
+        // Strict 1 session vote limit
         const existingVote = await Vote.findOne({ userId });
-        if (existingVote) {
-          if (String(existingVote.projectId) === String(projectId)) {
-            return res.status(400).json({
-              message: 'You have already voted for this project.'
-            });
-          } else {
-            const prevProject = await Project.findById(existingVote.projectId);
-            const prevTitle = prevProject ? prevProject.title : 'another project';
-            return res.status(400).json({
-              message: `You have already cast your 1 official vote for "${prevTitle}". Each participant is allowed only one vote in total across the entire Expo. You can still submit feedback and reviews for other projects!`
-            });
+        if (existingVote || req.user.hasVoted) {
+          const prevId = existingVote?.projectId || req.user.votedProjectId;
+          let prevTitle = 'another project';
+          if (prevId) {
+            const prevProj = await Project.findById(prevId);
+            if (prevProj) prevTitle = prevProj.title;
           }
+          return res.status(400).json({
+            success: false,
+            message: `You have already used your 1 vote for this Expo session (cast for "${prevTitle}"). Each authorized person is permitted only one vote in total. You can still submit feedback and reviews for any project!`
+          });
         }
 
         const vote = await Vote.create({
@@ -46,6 +46,12 @@ const castVote = async (req, res) => {
           review: review ? review.trim() : '',
           suggestion: suggestion ? suggestion.trim() : ''
         });
+
+        // Mark user as voted permanently in DB
+        await User.findByIdAndUpdate(userId, {
+          hasVoted: true,
+          votedProjectId: projectId
+        }).catch((uErr) => console.warn('User voted flag update notice:', uErr.message));
 
         // Increment project vote count
         project.votes = (project.votes || 0) + 1;

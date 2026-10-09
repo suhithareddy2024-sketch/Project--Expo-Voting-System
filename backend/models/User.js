@@ -38,6 +38,15 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false
     },
+    hasVoted: {
+      type: Boolean,
+      default: false
+    },
+    votedProjectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Project',
+      default: null
+    },
     lastLogin: {
       type: Date
     }

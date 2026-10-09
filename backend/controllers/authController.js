@@ -309,7 +309,9 @@ const verifyOtp = async (req, res) => {
         email: user.email,
         name: user.name,
         role: user.role,
-        isVerified: true
+        isVerified: true,
+        hasVoted: Boolean(user.hasVoted),
+        votedProjectId: user.votedProjectId || null
       }
     });
   } catch (error) {
@@ -337,7 +339,9 @@ const getMe = async (req, res) => {
         email: req.user.email,
         name: req.user.name,
         role: req.user.role,
-        isVerified: Boolean(req.user.isVerified)
+        isVerified: Boolean(req.user.isVerified),
+        hasVoted: Boolean(req.user.hasVoted),
+        votedProjectId: req.user.votedProjectId || null
       }
     });
   } catch (error) {
@@ -398,7 +402,15 @@ const registerUser = async (req, res) => {
       success: true,
       message: 'User registered successfully',
       token,
-      user: { _id: user._id, name: user.name, email: user.email, role: user.role, isVerified: true }
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isVerified: true,
+        hasVoted: Boolean(user.hasVoted),
+        votedProjectId: user.votedProjectId || null
+      }
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message || 'Registration failed' });
@@ -428,7 +440,7 @@ const loginUser = async (req, res) => {
       if (!user) {
         // Allow admin login fallback
         if (cleanEmail === 'karrisuhithareddy.24.it@anits.edu.in' && password === 'anits148') {
-          user = { _id: 'mem_admin', name: 'Admin', email: cleanEmail, role: 'admin', isVerified: true };
+          user = { _id: 'mem_admin', name: 'Admin', email: cleanEmail, role: 'admin', isVerified: true, hasVoted: false };
           memUsers.set(cleanEmail, user);
         } else {
           return res.status(401).json({ success: false, message: 'Invalid email or password' });
@@ -441,7 +453,15 @@ const loginUser = async (req, res) => {
       success: true,
       message: 'Login successful',
       token,
-      user: { _id: user._id, name: user.name, email: user.email, role: user.role, isVerified: true }
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isVerified: true,
+        hasVoted: Boolean(user.hasVoted),
+        votedProjectId: user.votedProjectId || null
+      }
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message || 'Login failed' });

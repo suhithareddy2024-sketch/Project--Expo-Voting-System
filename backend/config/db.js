@@ -32,6 +32,10 @@ const connectDB = async () => {
     cached.promise = mongoose.connect(mongoUri, opts).then((mongooseInstance) => {
       console.log(`✅ MongoDB Connected: ${mongooseInstance.connection.host}`);
       isConnected = true;
+      try {
+        const Vote = require('../models/Vote');
+        Vote.syncIndexes().catch(() => {});
+      } catch (iErr) {}
       return mongooseInstance;
     }).catch((err) => {
       cached.promise = null;

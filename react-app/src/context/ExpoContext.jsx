@@ -374,6 +374,12 @@ export function ExpoProvider({ children }) {
         vote: voteRes.data
       });
 
+      if (user) {
+        const updatedUser = { ...user, hasVoted: true, votedProjectId: projectId };
+        setUser(updatedUser);
+        setAuthSession(currentToken, updatedUser);
+      }
+
       // 3. Update project vote count locally & refresh results
       setProjects((prev) =>
         prev.map((p) =>

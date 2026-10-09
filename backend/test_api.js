@@ -115,11 +115,11 @@ async function runTests() {
     console.log(`Status: ${duplicateVoteRes.status}`, duplicateVoteRes.body);
     if (
       duplicateVoteRes.status !== 400 ||
-      !duplicateVoteRes.body.message.includes('already voted')
+      (!duplicateVoteRes.body.message.includes('already') && !duplicateVoteRes.body.message.includes('1 vote'))
     ) {
       throw new Error('Duplicate vote prevention test failed!');
     }
-    console.log('✓ SUCCESS: Same project duplicate vote prevented.');
+    console.log('✓ SUCCESS: Session single vote enforcement properly rejected second vote!');
 
     if (projectsRes.body.data.length > 1) {
       const secondProject = projectsRes.body.data[1];
@@ -132,10 +132,10 @@ async function runTests() {
         Authorization: `Bearer ${voterToken}`
       });
       console.log(`Status: ${secondVoteRes.status}`, secondVoteRes.body);
-      if (secondVoteRes.status !== 400 || !secondVoteRes.body.message.includes('already cast your 1 official vote')) {
+      if (secondVoteRes.status !== 400 || !secondVoteRes.body.message.includes('1 vote')) {
         throw new Error('Cross-project vote rejection test failed!');
       }
-      console.log('✓ SUCCESS: 1 User 1 Vote limit enforced across different projects!');
+      console.log('✓ SUCCESS: 1 User 1 Session Vote limit enforced across different projects!');
 
       console.log(`\n6c. Testing Feedback on Second Project (Project #${secondProject.team})...`);
       const secondFeedbackRes = await request('POST', '/api/feedback', {
