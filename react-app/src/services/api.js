@@ -185,6 +185,11 @@ export const api = {
       body: voteData
     }),
 
+  getMyVote: () =>
+    request('/votes/my-vote', {
+      method: 'GET'
+    }),
+
   checkUserVoted: (projectId) =>
     request(`/votes/check/${projectId}`, {
       method: 'GET'

@@ -72,7 +72,16 @@ export function ExpoProvider({ children }) {
     return ids;
   });
 
-  // 10. Auth Modal Control & Action Interception State
+  // 10. Track the single global vote cast by the current user across the whole expo
+  const [userVote, setUserVote] = useState({
+    hasVoted: false,
+    votedProjectId: null,
+    votedProjectTitle: null,
+    votedProjectTeam: null,
+    vote: null
+  });
+
+  // 11. Auth Modal Control & Action Interception State
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authPendingCallback, setAuthPendingCallback] = useState(null);
 
@@ -96,6 +105,7 @@ export function ExpoProvider({ children }) {
       setAuthPendingCallback(null);
       setTimeout(() => cb(authenticatedUser), 100);
     }
+    fetchUserVote();
   };
 
   const requireAuth = (actionCallback) => {
@@ -113,6 +123,49 @@ export function ExpoProvider({ children }) {
     id: p._id || p.id,
     _id: p._id || p.id
   });
+
+  // Fetch the current logged-in user's single vote status
+  const fetchUserVote = useCallback(async () => {
+    const currentToken = getToken();
+    if (!currentToken) {
+      setUserVote({
+        hasVoted: false,
+        votedProjectId: null,
+        votedProjectTitle: null,
+        votedProjectTeam: null,
+        vote: null
+      });
+      return;
+    }
+    try {
+      const res = await api.getMyVote();
+      if (res && res.hasVoted && res.vote) {
+        const vProj = res.vote.projectId;
+        const vProjId = vProj?._id || vProj?.id || vProj;
+        setUserVote({
+          hasVoted: true,
+          votedProjectId: String(vProjId),
+          votedProjectTitle: vProj?.title || 'Voted Project',
+          votedProjectTeam: vProj?.team || null,
+          vote: res.vote
+        });
+        if (vProjId) {
+          localStorage.setItem(`voted_project_${vProjId}`, 'true');
+          setVotedProjectIds((prev) => [...new Set([...prev, String(vProjId)])]);
+        }
+      } else {
+        setUserVote({
+          hasVoted: false,
+          votedProjectId: null,
+          votedProjectTitle: null,
+          votedProjectTeam: null,
+          vote: null
+        });
+      }
+    } catch (e) {
+      console.warn('Fetch User Vote notice:', e.message);
+    }
+  }, []);
 
   // Fetch all projects and results from backend
   const fetchBackendData = useCallback(async () => {
@@ -156,13 +209,14 @@ export function ExpoProvider({ children }) {
             setUser(res.user);
             setIsAdminLoggedIn(res.user.role === 'admin');
           }
+          await fetchUserVote();
         } catch (e) {
           console.warn('Session check note:', e.message);
         }
       }
     };
     checkUserSession();
-  }, [fetchBackendData]);
+  }, [fetchBackendData, fetchUserVote]);
 
   // Sync settings & categories to localStorage
   useEffect(() => {
@@ -187,6 +241,7 @@ export function ExpoProvider({ children }) {
         setToken(res.token);
         setUser(res.user);
         setIsAdminLoggedIn(res.user.role === 'admin');
+        await fetchUserVote();
         return { success: true, user: res.user };
       }
       return { success: false, message: 'Invalid response from server' };
@@ -212,6 +267,7 @@ export function ExpoProvider({ children }) {
         setToken(res.token);
         setUser(res.user);
         setIsAdminLoggedIn(res.user.role === 'admin');
+        await fetchUserVote();
         return { success: true, user: res.user };
       }
       return { success: false, message: res.message || 'OTP verification failed' };
@@ -228,6 +284,7 @@ export function ExpoProvider({ children }) {
         setToken(res.token);
         setUser(res.user);
         setIsAdminLoggedIn(res.user.role === 'admin');
+        await fetchUserVote();
         return { success: true, user: res.user };
       }
       return { success: false, message: 'Invalid registration response' };
@@ -245,6 +302,7 @@ export function ExpoProvider({ children }) {
         setToken(res.token);
         setUser(res.user);
         setIsAdminLoggedIn(true);
+        await fetchUserVote();
         return { success: true, user: res.user };
       } else if (res.user && res.user.role !== 'admin') {
         return { success: false, message: 'Access denied: User is not an admin' };
@@ -260,6 +318,13 @@ export function ExpoProvider({ children }) {
     setUser(null);
     setToken(null);
     setIsAdminLoggedIn(false);
+    setUserVote({
+      hasVoted: false,
+      votedProjectId: null,
+      votedProjectTitle: null,
+      votedProjectTeam: null,
+      vote: null
+    });
   };
 
   const logoutAdmin = () => {
@@ -270,11 +335,21 @@ export function ExpoProvider({ children }) {
   // VOTING & FEEDBACK METHODS
   // ==========================================
 
+  // Cast the 1 official vote allowed per user
   const castVote = async (projectId, voteData) => {
     try {
       const currentToken = getToken();
       if (!currentToken) {
         throw new Error('Please log in or authenticate before casting a vote.');
+      }
+
+      // Check client-side if already voted
+      if (userVote.hasVoted) {
+        if (String(userVote.votedProjectId) === String(projectId)) {
+          throw new Error('You have already cast your official vote for this project.');
+        } else {
+          throw new Error(`You have already cast your single allowed vote for "${userVote.votedProjectTitle || 'another project'}". Each participant is limited to 1 official vote across the entire expo. You can still submit feedback!`);
+        }
       }
 
       // 1. Submit Vote to MongoDB
@@ -286,25 +361,20 @@ export function ExpoProvider({ children }) {
         suggestion: voteData.suggestion || ''
       });
 
-      // 2. Also submit feedback
-      try {
-        await api.submitFeedback({
-          projectId,
-          rating: voteData.rating || 5,
-          message: [voteData.appreciation, voteData.review, voteData.suggestion].filter(Boolean).join(' | '),
-          appreciation: voteData.appreciation,
-          review: voteData.review,
-          suggestion: voteData.suggestion
-        });
-      } catch (fbErr) {
-        console.warn('Feedback submit secondary log:', fbErr.message);
-      }
-
-      // 3. Mark voted locally for instant UI responsiveness
+      // 2. Mark voted locally and update state
       localStorage.setItem(`voted_project_${projectId}`, 'true');
       setVotedProjectIds((prev) => [...new Set([...prev, String(projectId)])]);
+      
+      const targetProj = projects.find((p) => String(p._id || p.id) === String(projectId));
+      setUserVote({
+        hasVoted: true,
+        votedProjectId: String(projectId),
+        votedProjectTitle: targetProj?.title || 'Voted Project',
+        votedProjectTeam: targetProj?.team || null,
+        vote: voteRes.data
+      });
 
-      // 4. Update project vote count locally & refresh results
+      // 3. Update project vote count locally & refresh results
       setProjects((prev) =>
         prev.map((p) =>
           (p._id === projectId || p.id === projectId)
@@ -323,9 +393,37 @@ export function ExpoProvider({ children }) {
     }
   };
 
+  // Submit feedback/review for ANY project (multiple projects allowed)
+  const submitFeedback = async (projectId, feedbackData) => {
+    try {
+      const currentToken = getToken();
+      if (!currentToken) {
+        throw new Error('Please log in or authenticate before submitting feedback.');
+      }
+
+      const msg = feedbackData.message || [feedbackData.appreciation, feedbackData.review, feedbackData.suggestion].filter(Boolean).join(' | ');
+
+      const res = await api.submitFeedback({
+        projectId,
+        rating: feedbackData.rating || 5,
+        message: msg,
+        appreciation: feedbackData.appreciation || '',
+        review: feedbackData.review || '',
+        suggestion: feedbackData.suggestion || ''
+      });
+
+      fetchBackendData();
+      return { success: true, data: res.data, message: res.message };
+    } catch (err) {
+      console.error('Error submitting feedback:', err);
+      throw err;
+    }
+  };
+
   const hasVotedForProject = (projectId) => {
     if (!projectId) return false;
     return (
+      (userVote.hasVoted && String(userVote.votedProjectId) === String(projectId)) ||
       votedProjectIds.includes(String(projectId)) ||
       localStorage.getItem(`voted_project_${projectId}`) === 'true'
     );
@@ -336,7 +434,16 @@ export function ExpoProvider({ children }) {
     if (!currentToken || !projectId) return false;
     try {
       const res = await api.checkUserVoted(projectId);
-      if (res.hasVoted) {
+      if (res.hasVotedAnywhere) {
+        setUserVote({
+          hasVoted: true,
+          votedProjectId: String(res.votedProjectId),
+          votedProjectTitle: res.votedProjectTitle,
+          votedProjectTeam: res.votedProjectTeam,
+          vote: res.vote
+        });
+      }
+      if (res.hasVoted || res.hasVotedForThisProject) {
         localStorage.setItem(`voted_project_${projectId}`, 'true');
         setVotedProjectIds((prev) => [...new Set([...prev, String(projectId)])]);
         return true;
@@ -496,6 +603,7 @@ export function ExpoProvider({ children }) {
         reviews,
         user,
         token,
+        userVote,
         isAuthenticated: Boolean(user && token),
         isVerified: Boolean(user && user.isVerified),
         isAdminLoggedIn,
@@ -512,6 +620,8 @@ export function ExpoProvider({ children }) {
         logout,
         logoutAdmin,
         castVote,
+        submitFeedback,
+        fetchUserVote,
         hasVotedForProject,
         checkUserVotedOnBackend,
         updateExpoHeadings,

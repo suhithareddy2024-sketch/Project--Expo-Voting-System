@@ -36,7 +36,7 @@ const voteSchema = new mongoose.Schema(
   }
 );
 
-// Enforce 1 User, 1 Vote per Project with a Unique Compound Index in MongoDB
-voteSchema.index({ userId: 1, projectId: 1 }, { unique: true });
+// Enforce 1 User, 1 Vote overall across the entire Expo with a Unique Index on userId
+voteSchema.index({ userId: 1 }, { unique: true });
 
 module.exports = mongoose.model('Vote', voteSchema);

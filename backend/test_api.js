@@ -107,22 +107,51 @@ async function runTests() {
     console.log(`Status: ${voteRes.status}`, voteRes.body);
     if (voteRes.status !== 201) throw new Error('Cast vote failed');
 
-    // 6. Test Duplicate Vote (1 User, 1 Vote Rule)
-    console.log('\n6. Testing Duplicate Vote POST /api/votes (Same User + Same Project)...');
+    // 6. Test Duplicate Vote & Cross-Project Vote Rejection (1 User = 1 Vote Total)
+    console.log('\n6. Testing Duplicate Vote POST /api/votes (Same Project)...');
     const duplicateVoteRes = await request('POST', '/api/votes', votePayload, {
       Authorization: `Bearer ${voterToken}`
     });
     console.log(`Status: ${duplicateVoteRes.status}`, duplicateVoteRes.body);
     if (
       duplicateVoteRes.status !== 400 ||
-      duplicateVoteRes.body.message !== 'You have already voted for this project.'
+      !duplicateVoteRes.body.message.includes('already voted')
     ) {
       throw new Error('Duplicate vote prevention test failed!');
     }
-    console.log('✓ SUCCESS: Compound unique index { userId: 1, projectId: 1 } properly rejected duplicate vote!');
+    console.log('✓ SUCCESS: Same project duplicate vote prevented.');
+
+    if (projectsRes.body.data.length > 1) {
+      const secondProject = projectsRes.body.data[1];
+      console.log(`\n6b. Testing Cross-Project Vote Rejection POST /api/votes (Project #${secondProject.team} - "${secondProject.title}")...`);
+      const secondVoteRes = await request('POST', '/api/votes', {
+        projectId: secondProject._id,
+        rating: 4,
+        appreciation: 'Nice work'
+      }, {
+        Authorization: `Bearer ${voterToken}`
+      });
+      console.log(`Status: ${secondVoteRes.status}`, secondVoteRes.body);
+      if (secondVoteRes.status !== 400 || !secondVoteRes.body.message.includes('already cast your 1 official vote')) {
+        throw new Error('Cross-project vote rejection test failed!');
+      }
+      console.log('✓ SUCCESS: 1 User 1 Vote limit enforced across different projects!');
+
+      console.log(`\n6c. Testing Feedback on Second Project (Project #${secondProject.team})...`);
+      const secondFeedbackRes = await request('POST', '/api/feedback', {
+        projectId: secondProject._id,
+        rating: 5,
+        message: 'Feedback for second project without official vote'
+      }, {
+        Authorization: `Bearer ${voterToken}`
+      });
+      console.log(`Status: ${secondFeedbackRes.status}`, secondFeedbackRes.body);
+      if (secondFeedbackRes.status !== 201) throw new Error('Multi-project feedback failed');
+      console.log('✓ SUCCESS: User allowed to give feedback on other projects!');
+    }
 
     // 7. Feedback
-    console.log('\n7. Testing POST /api/feedback with Bearer JWT...');
+    console.log('\n7. Testing POST /api/feedback on first project with Bearer JWT...');
     const feedbackPayload = {
       projectId: targetProject._id,
       rating: 5,
@@ -133,6 +162,15 @@ async function runTests() {
     });
     console.log(`Status: ${feedbackRes.status}`, feedbackRes.body);
     if (feedbackRes.status !== 201) throw new Error('Feedback submit failed');
+
+    // 7b. Check My Vote endpoint
+    console.log('\n7b. Testing GET /api/votes/my-vote...');
+    const myVoteRes = await request('GET', '/api/votes/my-vote', null, {
+      Authorization: `Bearer ${voterToken}`
+    });
+    console.log(`Status: ${myVoteRes.status}`, `hasVoted: ${myVoteRes.body.hasVoted}`);
+    if (myVoteRes.status !== 200 || !myVoteRes.body.hasVoted) throw new Error('Get my vote failed');
+    console.log('✓ SUCCESS: GET /api/votes/my-vote correctly returned user vote.');
 
     // 8. Results API
     console.log('\n8. Testing GET /api/results...');

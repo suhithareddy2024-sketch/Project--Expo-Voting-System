@@ -5,8 +5,9 @@ import api from '../services/api';
 
 export default function ProjectDetailsPage() {
   const { id } = useParams();
-  const { projects, loading, requireAuth } = useExpo();
+  const { projects, loading, requireAuth, userVote, hasVotedForProject } = useExpo();
   const [project, setProject] = useState(null);
+  const [feedbacks, setFeedbacks] = useState([]);
   const [fetching, setFetching] = useState(false);
   const navigate = useNavigate();
 
@@ -46,6 +47,18 @@ export default function ProjectDetailsPage() {
         })
         .finally(() => setFetching(false));
     }
+
+    // Fetch feedbacks for this project
+    api
+      .getFeedbackByProject(id)
+      .then((res) => {
+        if (res?.data) {
+          setFeedbacks(res.data);
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not fetch feedbacks:', err.message);
+      });
   }, [id, projects]);
 
   if ((loading || fetching) && !project) {
@@ -84,6 +97,11 @@ export default function ProjectDetailsPage() {
   ];
 
   const projectId = project._id || project.id;
+  const isVotedThisProject =
+    (userVote.hasVoted && String(userVote.votedProjectId) === String(projectId)) ||
+    hasVotedForProject(projectId);
+  const isVotedOtherProject =
+    userVote.hasVoted && String(userVote.votedProjectId) !== String(projectId);
 
   return (
     <div className="project-details-wrapper pb-5">
@@ -111,15 +129,38 @@ export default function ProjectDetailsPage() {
                 <span className="badge bg-dark-glass text-warning border border-warning fs-6 px-3 py-2 rounded-pill">
                   Team #{project.team || '01'}
                 </span>
+                <span className="badge bg-dark-glass text-info border border-info fs-6 px-3 py-2 rounded-pill">
+                  <i className="fa-solid fa-star text-warning me-1"></i> {project.votes || 0} Votes
+                </span>
               </div>
 
-              <button
-                type="button"
-                onClick={() => requireAuth(() => navigate(`/vote?id=${projectId}`))}
-                className="btn btn-gradient-primary btn-lg rounded-pill px-5 shadow-lg fw-bold"
-              >
-                <i className="fa-solid fa-check-to-slot me-2"></i> Vote For This Project
-              </button>
+              <div className="d-flex gap-3 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => requireAuth(() => navigate(`/vote?id=${projectId}`))}
+                  className={`btn ${
+                    isVotedThisProject
+                      ? 'btn-success'
+                      : isVotedOtherProject
+                      ? 'btn-outline-cyan'
+                      : 'btn-gradient-primary'
+                  } btn-lg rounded-pill px-4 shadow-lg fw-bold`}
+                >
+                  {isVotedThisProject ? (
+                    <>
+                      <i className="fa-solid fa-check-circle me-2"></i> Voted (View Receipt & Feedback)
+                    </>
+                  ) : isVotedOtherProject ? (
+                    <>
+                      <i className="fa-solid fa-comment-dots me-2"></i> Leave Feedback & Review
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa-solid fa-check-to-slot me-2"></i> Vote For This Project
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
             <div className="col-lg-6 text-center">
@@ -147,7 +188,7 @@ export default function ProjectDetailsPage() {
       <section className="py-5">
         <div className="container">
           <div className="row g-4">
-            {/* Left Column: Main Description & Key Highlights */}
+            {/* Left Column: Main Description, Key Highlights & Feedbacks */}
             <div className="col-lg-8">
               <div className="glass-card p-4 p-md-5 rounded-4 mb-4">
                 <h3 className="fw-bold text-white mb-3 border-bottom border-secondary pb-2">
@@ -172,6 +213,52 @@ export default function ProjectDetailsPage() {
                     </div>
                   ))}
                 </div>
+              </div>
+
+              {/* Community Reviews & Feedback Section */}
+              <div className="glass-card p-4 p-md-5 rounded-4 mb-4">
+                <div className="d-flex justify-content-between align-items-center mb-3 border-bottom border-secondary pb-2 flex-wrap gap-2">
+                  <h3 className="fw-bold text-white mb-0">
+                    <i className="fa-solid fa-comments text-cyan me-2"></i> Community Reviews ({feedbacks.length})
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => requireAuth(() => navigate(`/vote?id=${projectId}`))}
+                    className="btn btn-outline-cyan btn-sm rounded-pill px-3"
+                  >
+                    <i className="fa-solid fa-plus me-1"></i> Give Feedback
+                  </button>
+                </div>
+
+                {feedbacks.length === 0 ? (
+                  <p className="text-light-50 my-3">
+                    No community feedback submitted yet. Be the first to share your thoughts and evaluation!
+                  </p>
+                ) : (
+                  <div className="d-flex flex-column gap-3 mt-3">
+                    {feedbacks.map((fb, idx) => (
+                      <div key={fb._id || idx} className="p-3 rounded-3 bg-dark-glass border border-secondary">
+                        <div className="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-1">
+                          <div className="d-flex align-items-center gap-2">
+                            <i className="fa-solid fa-circle-user text-cyan fs-5"></i>
+                            <span className="text-white fw-semibold small">
+                              {fb.userId?.name || fb.userId?.email || 'Participant Evaluator'}
+                            </span>
+                          </div>
+                          <div className="text-warning small">
+                            {[1, 2, 3, 4, 5].map((s) => (
+                              <i
+                                key={s}
+                                className={`fa-star ${s <= (fb.rating || 5) ? 'fa-solid' : 'fa-regular'}`}
+                              ></i>
+                            ))}
+                          </div>
+                        </div>
+                        <p className="text-light mb-0 small">{fb.message}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -209,9 +296,27 @@ export default function ProjectDetailsPage() {
                   <button
                     type="button"
                     onClick={() => requireAuth(() => navigate(`/vote?id=${projectId}`))}
-                    className="btn btn-gradient-primary w-100 rounded-pill py-3 fw-bold"
+                    className={`btn ${
+                      isVotedThisProject
+                        ? 'btn-success'
+                        : isVotedOtherProject
+                        ? 'btn-outline-cyan'
+                        : 'btn-gradient-primary'
+                    } w-100 rounded-pill py-3 fw-bold`}
                   >
-                    <i className="fa-solid fa-vote-yea me-2"></i> Cast Vote Now
+                    {isVotedThisProject ? (
+                      <>
+                        <i className="fa-solid fa-check-circle me-2"></i> Voted (View Receipt)
+                      </>
+                    ) : isVotedOtherProject ? (
+                      <>
+                        <i className="fa-solid fa-comment-dots me-2"></i> Leave Feedback & Review
+                      </>
+                    ) : (
+                      <>
+                        <i className="fa-solid fa-vote-yea me-2"></i> Cast Vote Now
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -222,3 +327,4 @@ export default function ProjectDetailsPage() {
     </div>
   );
 }
+

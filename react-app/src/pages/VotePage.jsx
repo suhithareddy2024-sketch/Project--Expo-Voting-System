@@ -9,8 +9,11 @@ export default function VotePage() {
   const {
     projects,
     castVote,
+    submitFeedback,
     hasVotedForProject,
     checkUserVotedOnBackend,
+    userVote,
+    fetchUserVote,
     user,
     token,
     login,
@@ -34,10 +37,12 @@ export default function VotePage() {
   const [appreciation, setAppreciation] = useState('');
   const [review, setReview] = useState('');
   const [suggestion, setSuggestion] = useState('');
-  const [hasVoted, setHasVoted] = useState(false);
+  const [hasVotedThis, setHasVotedThis] = useState(false);
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [successNotice, setSuccessNotice] = useState('');
 
   // Auth Modal/Inline state if voter is not logged in
   const [authMode, setAuthMode] = useState('otp'); // 'otp' | 'password'
@@ -62,14 +67,23 @@ export default function VotePage() {
     window.scrollTo(0, 0);
   }, []);
 
+  // Determine vote status
+  const isVotedThisProject =
+    hasVotedThis ||
+    (userVote.hasVoted && String(userVote.votedProjectId) === String(projectId)) ||
+    hasVotedForProject(projectId);
+
+  const isVotedOtherProject =
+    userVote.hasVoted && String(userVote.votedProjectId) !== String(projectId);
+
   // Check voted status when project or user changes
   useEffect(() => {
     if (projectId) {
       if (hasVotedForProject(projectId)) {
-        setHasVoted(true);
+        setHasVotedThis(true);
       } else if (token) {
         checkUserVotedOnBackend(projectId).then((voted) => {
-          if (voted) setHasVoted(true);
+          if (voted) setHasVotedThis(true);
         });
       }
     }
@@ -154,31 +168,51 @@ export default function VotePage() {
     }
   };
 
-  const executeVoteSubmission = async () => {
+  // Submit either 1 official vote or feedback
+  const executeSubmission = async () => {
     setSubmitting(true);
-    try {
-      await castVote(projectId, {
-        rating,
-        appreciation: appreciation.trim(),
-        review: review.trim(),
-        suggestion: suggestion.trim(),
-        voterHash
-      });
+    setErrorMessage('');
+    setSuccessNotice('');
 
-      setHasVoted(true);
-      setShowConfetti(true);
+    try {
+      if (!isVotedOtherProject && !isVotedThisProject) {
+        // User is casting their 1 official vote
+        await castVote(projectId, {
+          rating,
+          appreciation: appreciation.trim(),
+          review: review.trim(),
+          suggestion: suggestion.trim(),
+          voterHash
+        });
+
+        setHasVotedThis(true);
+        setShowConfetti(true);
+        setSuccessNotice('🎉 Official Vote Successfully Recorded! Your single vote for this Expo has been sealed.');
+      } else {
+        // User has already cast their official vote, but is submitting feedback for this project
+        await submitFeedback(projectId, {
+          rating,
+          appreciation: appreciation.trim(),
+          review: review.trim(),
+          suggestion: suggestion.trim()
+        });
+
+        setFeedbackSubmitted(true);
+        setShowConfetti(true);
+        setSuccessNotice('🎉 Project Feedback & Review Successfully Submitted! Thank you for sharing your evaluation.');
+      }
     } catch (err) {
-      const msg = err.message || 'Failed to submit vote. Please try again.';
+      const msg = err.message || 'Failed to submit. Please try again.';
       setErrorMessage(msg);
       if (msg.toLowerCase().includes('already voted')) {
-        setHasVoted(true);
+        setHasVotedThis(true);
       }
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleSubmitVote = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
 
@@ -188,11 +222,11 @@ export default function VotePage() {
     }
 
     if (!user || !token) {
-      requireAuth(() => executeVoteSubmission());
+      requireAuth(() => executeSubmission());
       return;
     }
 
-    executeVoteSubmission();
+    executeSubmission();
   };
 
   const handleDownloadReceipt = () => {
@@ -307,12 +341,48 @@ export default function VotePage() {
                 )}
 
                 {/* Success Message Alert */}
-                {hasVoted && (
+                {successNotice && (
                   <div className="alert alert-success border-0 rounded-4 shadow-lg p-3 text-center mb-4">
-                    <h4 className="fw-bold mb-1">🎉 Vote Successfully Recorded!</h4>
+                    <h4 className="fw-bold mb-1">{successNotice}</h4>
                     <p className="mb-0">
-                      Your review and feedback have been cryptographically sealed into the voting ledger for Team #{project.team}.
+                      Your evaluation for Team #{project.team} has been saved to the database.
                     </p>
+                  </div>
+                )}
+
+                {/* Notice if user already voted for this project */}
+                {isVotedThisProject && (
+                  <div className="alert alert-info border border-info bg-dark-glass rounded-4 shadow-lg p-3 text-center mb-4">
+                    <h5 className="fw-bold text-cyan mb-1">
+                      <i className="fa-solid fa-check-double me-2"></i> You voted for this project!
+                    </h5>
+                    <p className="mb-0 text-light small">
+                      This project received your official single Expo vote. You can still submit additional feedback below.
+                    </p>
+                  </div>
+                )}
+
+                {/* Notice if user already voted for ANOTHER project */}
+                {isVotedOtherProject && (
+                  <div className="alert alert-warning border border-warning bg-dark-glass rounded-4 shadow-lg p-4 mb-4">
+                    <div className="d-flex align-items-start gap-3">
+                      <i className="fa-solid fa-info-circle text-warning fs-2 mt-1"></i>
+                      <div>
+                        <h5 className="fw-bold text-white mb-1">
+                          1 Official Vote Policy
+                        </h5>
+                        <p className="text-light mb-2">
+                          You have already cast your single official vote for{' '}
+                          <strong className="text-warning">
+                            {userVote.votedProjectTitle || 'another project'}
+                          </strong>{' '}
+                          {userVote.votedProjectTeam ? `(Team #${userVote.votedProjectTeam})` : ''}.
+                        </p>
+                        <p className="text-info mb-0 small">
+                          <i className="fa-solid fa-comment-dots me-1"></i> You can still submit valuable <strong>Feedback, Ratings, and Reviews</strong> for this project! Your review will be shared with the project team.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -341,7 +411,7 @@ export default function VotePage() {
                       </div>
                     </div>
                     <span className="badge bg-success bg-opacity-25 text-success border border-success px-3 py-2 rounded-pill small">
-                      <i className="fa-solid fa-shield-check me-1"></i> Authorized to Vote
+                      <i className="fa-solid fa-shield-check me-1"></i> Authorized Voter
                     </span>
                   </div>
                 ) : (
@@ -370,7 +440,7 @@ export default function VotePage() {
                     </div>
 
                     <div className="alert alert-info py-2 px-3 small mb-3 border-0 bg-info bg-opacity-10 text-info rounded-3">
-                      <i className="fa-solid fa-circle-info me-1"></i> Enter your registered email to receive an official 6-digit OTP code to unlock voting.
+                      <i className="fa-solid fa-circle-info me-1"></i> Enter your registered email to receive an official 6-digit OTP code to unlock voting & feedback.
                     </div>
 
                     {authError && (
@@ -518,8 +588,24 @@ export default function VotePage() {
                   </div>
                 )}
 
-                {/* Voting Form */}
-                <form onSubmit={handleSubmitVote}>
+                {/* Form Title */}
+                <div className="mb-4 text-center">
+                  <h4 className="fw-bold text-white mb-1">
+                    {isVotedOtherProject
+                      ? '💬 Submit Project Feedback & Review'
+                      : isVotedThisProject
+                      ? '⭐ Review & Vote Details'
+                      : '🗳️ Cast Your Official Expo Vote'}
+                  </h4>
+                  <p className="text-light-50 small mb-0">
+                    {isVotedOtherProject
+                      ? 'Share constructive thoughts, ratings, and suggestions with this team.'
+                      : 'Provide your evaluation to support this innovation.'}
+                  </p>
+                </div>
+
+                {/* Voting & Feedback Form */}
+                <form onSubmit={handleSubmit}>
                   {/* Star Rating */}
                   <div className="mb-4 text-center">
                     <label className="form-label text-light fw-medium d-block fs-5">
@@ -533,9 +619,9 @@ export default function VotePage() {
                           <i
                             key={star}
                             className={`${isFilled ? 'fa-solid text-warning' : 'fa-regular'} fa-star star`}
-                            onMouseEnter={() => !hasVoted && setHoverRating(star)}
-                            onMouseLeave={() => !hasVoted && setHoverRating(0)}
-                            onClick={() => !hasVoted && setRating(star)}
+                            onMouseEnter={() => setHoverRating(star)}
+                            onMouseLeave={() => setHoverRating(0)}
+                            onClick={() => setRating(star)}
                           ></i>
                         );
                       })}
@@ -555,7 +641,7 @@ export default function VotePage() {
                       placeholder="e.g. Brilliant execution! Love the real-time sensor integration."
                       value={appreciation}
                       onChange={(e) => setAppreciation(e.target.value)}
-                      disabled={hasVoted || submitting}
+                      disabled={submitting}
                       required
                     />
                     <div className="form-text text-light-50 counter text-end">
@@ -576,7 +662,7 @@ export default function VotePage() {
                       placeholder="Share detailed feedback on design, feasibility, and presentation..."
                       value={review}
                       onChange={(e) => setReview(e.target.value)}
-                      disabled={hasVoted || submitting}
+                      disabled={submitting}
                       required
                     ></textarea>
                     <div className="form-text text-light-50 counter text-end">
@@ -597,7 +683,7 @@ export default function VotePage() {
                       placeholder="What improvements or future features would enhance this project?"
                       value={suggestion}
                       onChange={(e) => setSuggestion(e.target.value)}
-                      disabled={hasVoted || submitting}
+                      disabled={submitting}
                       required
                     ></textarea>
                     <div className="form-text text-light-50 counter text-end">
@@ -607,39 +693,39 @@ export default function VotePage() {
 
                   {/* Submit Button */}
                   <div className="text-center mt-4">
-                    {hasVoted ? (
-                      <button
-                        type="button"
-                        disabled
-                        className="btn btn-secondary btn-lg px-5 py-3 rounded-pill fw-bold text-uppercase shadow-lg w-100"
-                      >
-                        <i className="fa-solid fa-check me-2"></i> Official Vote Submitted
-                      </button>
-                    ) : (
-                      <button
-                        type="submit"
-                        disabled={submitting || !user}
-                        className="btn btn-gradient-primary btn-lg px-5 py-3 rounded-pill fw-bold text-uppercase shadow-lg w-100"
-                      >
-                        {submitting ? (
-                          <>
-                            <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                            Sealing Vote in Database...
-                          </>
-                        ) : (
-                          <>
-                            <i className="fa-solid fa-check-circle me-2"></i> Submit Official Vote
-                          </>
-                        )}
-                      </button>
-                    )}
+                    <button
+                      type="submit"
+                      disabled={submitting || !user}
+                      className={`btn ${
+                        isVotedOtherProject ? 'btn-outline-cyan' : 'btn-gradient-primary'
+                      } btn-lg px-5 py-3 rounded-pill fw-bold text-uppercase shadow-lg w-100`}
+                    >
+                      {submitting ? (
+                        <>
+                          <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                          Submitting...
+                        </>
+                      ) : isVotedOtherProject ? (
+                        <>
+                          <i className="fa-solid fa-paper-plane me-2"></i> Submit Project Feedback & Review
+                        </>
+                      ) : isVotedThisProject ? (
+                        <>
+                          <i className="fa-solid fa-comment-medical me-2"></i> Submit Additional Feedback
+                        </>
+                      ) : (
+                        <>
+                          <i className="fa-solid fa-check-circle me-2"></i> Submit Official Vote & Review
+                        </>
+                      )}
+                    </button>
                   </div>
                 </form>
 
                 {/* Post-Vote Receipt Actions */}
-                {hasVoted && (
+                {isVotedThisProject && (
                   <div className="mt-4 pt-3 border-top border-secondary text-center">
-                    <h5 className="text-success fw-bold mb-3">🎉 Thank You For Voting!</h5>
+                    <h5 className="text-success fw-bold mb-3">🎉 Official Vote Cast For This Project!</h5>
                     <div className="d-flex justify-content-center gap-3 flex-wrap">
                       <button
                         type="button"
