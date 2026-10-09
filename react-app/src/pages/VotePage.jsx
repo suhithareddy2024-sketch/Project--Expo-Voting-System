@@ -67,27 +67,26 @@ export default function VotePage() {
     window.scrollTo(0, 0);
   }, []);
 
-  // Determine vote status
-  const isVotedThisProject =
+  // Determine vote status directly from backend userVote state
+  const isVotedThisProject = Boolean(
     hasVotedThis ||
-    (userVote.hasVoted && String(userVote.votedProjectId) === String(projectId)) ||
-    hasVotedForProject(projectId);
+    (userVote.hasVoted && String(userVote.votedProjectId) === String(projectId))
+  );
 
-  const isVotedOtherProject =
-    userVote.hasVoted && String(userVote.votedProjectId) !== String(projectId);
+  const isVotedOtherProject = Boolean(
+    userVote.hasVoted && String(userVote.votedProjectId) !== String(projectId)
+  );
 
   // Check voted status when project or user changes
   useEffect(() => {
-    if (projectId) {
-      if (hasVotedForProject(projectId)) {
-        setHasVotedThis(true);
-      } else if (token) {
-        checkUserVotedOnBackend(projectId).then((voted) => {
-          if (voted) setHasVotedThis(true);
-        });
-      }
+    if (projectId && token) {
+      checkUserVotedOnBackend(projectId).then((voted) => {
+        setHasVotedThis(Boolean(voted));
+      });
+    } else {
+      setHasVotedThis(false);
     }
-  }, [projectId, token, hasVotedForProject, checkUserVotedOnBackend]);
+  }, [projectId, token, checkUserVotedOnBackend]);
 
   const handleSendOtp = async (e) => {
     if (e) e.preventDefault();

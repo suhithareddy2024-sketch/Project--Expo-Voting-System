@@ -60,17 +60,8 @@ export function ExpoProvider({ children }) {
   // 8. Active Animation Transition State (robot, water, ai, cyber, etc.)
   const [activeTransition, setActiveTransition] = useState(null);
 
-  // 9. Voted projects tracking for quick UI feedback
-  const [votedProjectIds, setVotedProjectIds] = useState(() => {
-    const ids = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('voted_project_') && localStorage.getItem(key) === 'true') {
-        ids.push(key.replace('voted_project_', ''));
-      }
-    }
-    return ids;
-  });
+  // 9. Voted project IDs tracking (in-memory for active session)
+  const [votedProjectIds, setVotedProjectIds] = useState([]);
 
   // 10. Track the single global vote cast by the current user across the whole expo
   const [userVote, setUserVote] = useState({
@@ -124,10 +115,25 @@ export function ExpoProvider({ children }) {
     _id: p._id || p.id
   });
 
-  // Fetch the current logged-in user's single vote status
+  // Helper to purge any obsolete voted_project keys from localStorage
+  const clearStaleVoteStorage = () => {
+    try {
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('voted_project_')) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k));
+    } catch (e) {}
+  };
+
+  // Fetch the current logged-in user's single vote status directly from MongoDB
   const fetchUserVote = useCallback(async () => {
     const currentToken = getToken();
     if (!currentToken) {
+      clearStaleVoteStorage();
       setUserVote({
         hasVoted: false,
         votedProjectId: null,
@@ -135,6 +141,7 @@ export function ExpoProvider({ children }) {
         votedProjectTeam: null,
         vote: null
       });
+      setVotedProjectIds([]);
       return;
     }
     try {
@@ -150,10 +157,11 @@ export function ExpoProvider({ children }) {
           vote: res.vote
         });
         if (vProjId) {
-          localStorage.setItem(`voted_project_${vProjId}`, 'true');
-          setVotedProjectIds((prev) => [...new Set([...prev, String(vProjId)])]);
+          setVotedProjectIds([String(vProjId)]);
         }
       } else {
+        // Backend confirms NO vote in MongoDB: Clear any stale flags
+        clearStaleVoteStorage();
         setUserVote({
           hasVoted: false,
           votedProjectId: null,
@@ -161,6 +169,8 @@ export function ExpoProvider({ children }) {
           votedProjectTeam: null,
           vote: null
         });
+        setVotedProjectIds([]);
+        setUser((prev) => (prev ? { ...prev, hasVoted: false, votedProjectId: null } : prev));
       }
     } catch (e) {
       console.warn('Fetch User Vote notice:', e.message);
@@ -428,10 +438,9 @@ export function ExpoProvider({ children }) {
 
   const hasVotedForProject = (projectId) => {
     if (!projectId) return false;
-    return (
+    return Boolean(
       (userVote.hasVoted && String(userVote.votedProjectId) === String(projectId)) ||
-      votedProjectIds.includes(String(projectId)) ||
-      localStorage.getItem(`voted_project_${projectId}`) === 'true'
+      votedProjectIds.includes(String(projectId))
     );
   };
 
@@ -440,7 +449,7 @@ export function ExpoProvider({ children }) {
     if (!currentToken || !projectId) return false;
     try {
       const res = await api.checkUserVoted(projectId);
-      if (res.hasVotedAnywhere) {
+      if (res.hasVotedAnywhere && res.votedProjectId) {
         setUserVote({
           hasVoted: true,
           votedProjectId: String(res.votedProjectId),
@@ -448,13 +457,18 @@ export function ExpoProvider({ children }) {
           votedProjectTeam: res.votedProjectTeam,
           vote: res.vote
         });
+        setVotedProjectIds([String(res.votedProjectId)]);
+      } else {
+        setUserVote({
+          hasVoted: false,
+          votedProjectId: null,
+          votedProjectTitle: null,
+          votedProjectTeam: null,
+          vote: null
+        });
+        setVotedProjectIds([]);
       }
-      if (res.hasVoted || res.hasVotedForThisProject) {
-        localStorage.setItem(`voted_project_${projectId}`, 'true');
-        setVotedProjectIds((prev) => [...new Set([...prev, String(projectId)])]);
-        return true;
-      }
-      return false;
+      return Boolean(res.hasVoted || res.hasVotedForThisProject);
     } catch (e) {
       return hasVotedForProject(projectId);
     }
