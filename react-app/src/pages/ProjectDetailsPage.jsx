@@ -130,7 +130,7 @@ export default function ProjectDetailsPage() {
                   Team #{project.team || '01'}
                 </span>
                 <span className="badge bg-dark-glass text-info border border-info fs-6 px-3 py-2 rounded-pill">
-                  <i className="fa-solid fa-star text-warning me-1"></i> {project.votes || 0} Votes
+                  <i className="fa-solid fa-star text-warning me-1"></i> {project.votes || 0} {Number(project.votes || 0) === 1 ? 'Vote' : 'Votes'}
                 </span>
               </div>
 

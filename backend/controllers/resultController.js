@@ -43,18 +43,48 @@ const getAllResults = async (req, res) => {
       });
     }
 
-    const projects = await Project.find({}).sort({ votes: -1, createdAt: 1 });
+    // Aggregate live vote counts directly from Vote collection
+    const voteCounts = await Vote.aggregate([
+      { $group: { _id: '$projectId', count: { $sum: 1 } } }
+    ]);
+    const voteMap = {};
+    voteCounts.forEach((v) => {
+      voteMap[String(v._id)] = v.count;
+    });
+
+    const projects = await Project.find({});
     const totalVotes = await Vote.countDocuments();
     const totalFeedback = await Feedback.countDocuments();
 
+    // Map projects with exact live vote count
+    const enriched = projects.map((p) => {
+      const obj = p.toObject();
+      const actualVotes = voteMap[String(p._id)] !== undefined ? voteMap[String(p._id)] : 0;
+      return {
+        ...obj,
+        id: p._id,
+        _id: p._id,
+        votes: actualVotes
+      };
+    });
+
+    // Sort strictly by votes descending, then team number/createdAt
+    enriched.sort((a, b) => {
+      if ((b.votes || 0) !== (a.votes || 0)) {
+        return (b.votes || 0) - (a.votes || 0);
+      }
+      return Number(a.team || 0) - Number(b.team || 0);
+    });
+
     // Top 3 Podium
-    const top3 = projects.slice(0, 3).map((p, idx) => ({
+    const top3 = enriched.slice(0, 3).map((p, idx) => ({
       rank: idx + 1,
       id: p._id,
       title: p.title,
       category: p.category,
       team: p.team,
-      votes: p.votes || 0
+      votes: p.votes || 0,
+      image: p.image
     }));
 
     res.status(200).json({
@@ -65,7 +95,7 @@ const getAllResults = async (req, res) => {
         totalFeedback
       },
       top3,
-      leaderboard: projects.map((p, index) => ({
+      leaderboard: enriched.map((p, index) => ({
         rank: index + 1,
         id: p._id,
         title: p.title,

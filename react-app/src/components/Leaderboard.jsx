@@ -3,26 +3,21 @@ import { useNavigate } from 'react-router-dom';
 import { useExpo } from '../context/ExpoContext';
 
 export default function Leaderboard() {
-  const { projects, resultsData, triggerCategoryAnimation } = useExpo();
+  const { projects, resultsData } = useExpo();
   const navigate = useNavigate();
 
-  // Sort projects by votes descending as live fallback
-  const sorted = [...projects].sort((a, b) => (b.votes || 0) - (a.votes || 0));
-  
-  // Use backend results top3 or fallback to sorted
-  const top3 =
-    resultsData?.top3 && resultsData.top3.length > 0
-      ? resultsData.top3.map((t) => {
-          const match = projects.find(
-            (p) => String(p._id) === String(t.id) || String(p.id) === String(t.id)
-          );
-          return {
-            ...t,
-            category: t.category || match?.category || 'AI',
-            image: match?.image
-          };
-        })
-      : sorted.slice(0, 3);
+  // Sort projects strictly by actual live vote count descending, with team number tiebreaker
+  const sorted = [...projects].sort(
+    (a, b) => (b.votes || 0) - (a.votes || 0) || Number(a.team || 0) - Number(b.team || 0)
+  );
+
+  // Derive live top 3
+  const top3 = sorted.slice(0, 3);
+
+  const formatVoteText = (count) => {
+    const n = Number(count || 0);
+    return `${n} ${n === 1 ? 'Vote' : 'Votes'}`;
+  };
 
   const handleCardMouseMove = (e) => {
     const card = e.currentTarget;
@@ -40,6 +35,7 @@ export default function Leaderboard() {
   };
 
   const handleProjectClick = (project) => {
+    if (!project) return;
     const id = project.id || project._id;
     navigate(`/project/${id}`);
   };
@@ -57,10 +53,10 @@ export default function Leaderboard() {
 
         {/* Top 3 Podium Grid */}
         <div className="leaderboard-podium">
-          {/* 2nd Place (Silver) */}
+          {/* 2nd Place (Silver - Left) */}
           {top3[1] && (
             <div
-              className="podium-card silver"
+              className="podium-card silver cursor-pointer"
               onMouseMove={handleCardMouseMove}
               onMouseLeave={handleCardMouseLeave}
               onClick={() => handleProjectClick(top3[1])}
@@ -69,14 +65,14 @@ export default function Leaderboard() {
               <span className="badge bg-secondary mb-2">2nd Place</span>
               <h4 className="fw-bold text-white mb-1">{top3[1].title}</h4>
               <p className="text-light-50 small mb-2">Team #{top3[1].team}</p>
-              <div className="vote-chip">{top3[1].votes || 0} Votes</div>
+              <div className="vote-chip">{formatVoteText(top3[1].votes)}</div>
             </div>
           )}
 
-          {/* 1st Place (Gold) */}
+          {/* 1st Place (Gold - Center) */}
           {top3[0] && (
             <div
-              className="podium-card gold"
+              className="podium-card gold cursor-pointer"
               onMouseMove={handleCardMouseMove}
               onMouseLeave={handleCardMouseLeave}
               onClick={() => handleProjectClick(top3[0])}
@@ -85,14 +81,16 @@ export default function Leaderboard() {
               <span className="badge bg-warning text-dark fw-bold mb-2">1st Champion</span>
               <h3 className="fw-bold text-white mb-1">{top3[0].title}</h3>
               <p className="text-warning small mb-2">Team #{top3[0].team}</p>
-              <div className="vote-chip border-warning text-warning">{top3[0].votes || 0} Votes</div>
+              <div className="vote-chip border-warning text-warning fw-bold">
+                {formatVoteText(top3[0].votes)}
+              </div>
             </div>
           )}
 
-          {/* 3rd Place (Bronze) */}
+          {/* 3rd Place (Bronze - Right) */}
           {top3[2] && (
             <div
-              className="podium-card bronze"
+              className="podium-card bronze cursor-pointer"
               onMouseMove={handleCardMouseMove}
               onMouseLeave={handleCardMouseLeave}
               onClick={() => handleProjectClick(top3[2])}
@@ -101,7 +99,7 @@ export default function Leaderboard() {
               <span className="badge bg-danger mb-2">3rd Place</span>
               <h4 className="fw-bold text-white mb-1">{top3[2].title}</h4>
               <p className="text-light-50 small mb-2">Team #{top3[2].team}</p>
-              <div className="vote-chip">{top3[2].votes || 0} Votes</div>
+              <div className="vote-chip">{formatVoteText(top3[2].votes)}</div>
             </div>
           )}
         </div>

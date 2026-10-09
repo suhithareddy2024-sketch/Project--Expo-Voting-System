@@ -37,7 +37,7 @@ export default function ProjectCard({ project }) {
               {project.category}
             </span>
             <span className="text-cyan small fw-semibold">
-              <i className="fa-solid fa-heart me-1"></i> {project.votes || 0} Votes
+              <i className="fa-solid fa-heart me-1"></i> {project.votes || 0} {Number(project.votes || 0) === 1 ? 'Vote' : 'Votes'}
             </span>
           </div>
           <h4 className="fw-bold text-white mt-1 project-title">{project.title}</h4>

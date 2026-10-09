@@ -23,11 +23,29 @@ const getProjects = async (req, res) => {
       });
     }
 
+    // Aggregate live vote counts directly from Vote collection
+    const voteCounts = await Vote.aggregate([
+      { $group: { _id: '$projectId', count: { $sum: 1 } } }
+    ]);
+    const voteMap = {};
+    voteCounts.forEach((v) => {
+      voteMap[String(v._id)] = v.count;
+    });
+
     const projects = await Project.find({}).sort({ createdAt: -1 });
+    const formatted = projects.map((p) => {
+      const obj = p.toObject();
+      const actualVotes = voteMap[String(p._id)] !== undefined ? voteMap[String(p._id)] : (obj.votes || 0);
+      return {
+        ...obj,
+        votes: actualVotes
+      };
+    });
+
     res.status(200).json({
       success: true,
-      count: projects.length,
-      data: projects
+      count: formatted.length,
+      data: formatted
     });
   } catch (error) {
     console.error('Get Projects Error:', error);
@@ -62,9 +80,16 @@ const getProjectById = async (req, res) => {
     if (!project) {
       return res.status(404).json({ message: 'Project not found' });
     }
+
+    const projObj = project.toObject ? project.toObject() : { ...project };
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      const voteCount = await Vote.countDocuments({ projectId: project._id });
+      projObj.votes = voteCount;
+    }
+
     res.status(200).json({
       success: true,
-      data: project
+      data: projObj
     });
   } catch (error) {
     console.error('Get Project By ID Error:', error);
