@@ -460,7 +460,7 @@ export default function VotePage() {
                               <input
                                 type="email"
                                 className="form-control glass-input form-control-sm"
-                                placeholder="Enter email (e.g. karrisuhithareddy.24.it@anits.edu.in)"
+                                placeholder="Enter email (e.g. voter@example.com or student@anits.edu.in)"
                                 value={authEmail}
                                 onChange={(e) => setAuthEmail(e.target.value)}
                                 required

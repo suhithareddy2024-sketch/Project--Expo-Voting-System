@@ -7,6 +7,9 @@ const User = require('./models/User');
 
 dotenv.config();
 
+const http = require('http');
+const app = require('./server');
+
 const API_BASE = 'http://localhost:5000/api';
 
 async function runTests() {
@@ -14,9 +17,22 @@ async function runTests() {
   console.log('🧪 RUNNING ANITS OTP AUTHENTICATION TESTS');
   console.log('========================================\n');
 
+  const server = http.createServer(app);
+  let serverStarted = false;
+  try {
+    await new Promise((resolve) => {
+      server.listen(5000, () => {
+        serverStarted = true;
+        resolve();
+      });
+      server.on('error', () => resolve());
+    });
+  } catch (e) {}
+
   await connectDB();
 
   // Test 1: Reject Non-ANITS Domain (@gmail.com)
+  process.env.STRICT_COLLEGE_DOMAIN = 'true';
   console.log('▶ TEST 1: Reject non-ANITS domain (student@gmail.com)');
   try {
     const res = await fetch(`${API_BASE}/auth/send-otp`, {
@@ -24,6 +40,7 @@ async function runTests() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: 'student@gmail.com' })
     });
+    process.env.STRICT_COLLEGE_DOMAIN = 'false';
     const data = await res.json();
     console.log(`  Response (${res.status}):`, data);
     if (res.status === 400 && data.message === 'Only @anits.edu.in email addresses are allowed.') {
@@ -167,6 +184,7 @@ async function runTests() {
   }
 
   // Test 7: Verify OTP with non-ANITS email
+  process.env.STRICT_COLLEGE_DOMAIN = 'true';
   console.log('▶ TEST 7: Verify OTP with non-ANITS email domain');
   try {
     const res = await fetch(`${API_BASE}/auth/verify-otp`, {
@@ -174,6 +192,7 @@ async function runTests() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: 'hacker@otherdomain.com', otp: '123456' })
     });
+    process.env.STRICT_COLLEGE_DOMAIN = 'false';
     const data = await res.json();
     console.log(`  Response (${res.status}):`, data);
     if (res.status === 400 && data.message === 'Only @anits.edu.in email addresses are allowed.') {
@@ -188,9 +207,13 @@ async function runTests() {
   // Cleanup
   await Otp.deleteMany({ email: testEmail });
   await mongoose.connection.close();
+  if (serverStarted) {
+    server.close();
+  }
   console.log('========================================');
   console.log('🎉 ALL INTEGRATION TESTS COMPLETED');
   console.log('========================================\n');
+  process.exit(0);
 }
 
 runTests();

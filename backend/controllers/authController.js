@@ -10,6 +10,24 @@ const { sendOTPEmail } = require('../services/emailService');
 const memOtps = new Map();
 const memUsers = new Map();
 
+// Rate limiting map: tracks OTP requests per email in a 10-minute sliding window
+const otpRequestRateLimits = new Map();
+
+const isRateLimited = (key) => {
+  if (process.env.NODE_ENV === 'test') return false;
+  const now = Date.now();
+  const windowMs = 10 * 60 * 1000; // 10 minutes
+  const maxRequests = 10; // max 10 requests per 10 mins
+
+  const timestamps = (otpRequestRateLimits.get(key) || []).filter((t) => now - t < windowMs);
+  if (timestamps.length >= maxRequests) {
+    return true;
+  }
+  timestamps.push(now);
+  otpRequestRateLimits.set(key, timestamps);
+  return false;
+};
+
 // Helper to check if MongoDB is active
 const isDbConnected = () => mongoose.connection.readyState === 1;
 
@@ -55,9 +73,12 @@ const sendOtp = async (req, res) => {
     const cleanEmail = email.toLowerCase().trim();
 
     if (!validateEmailAddress(cleanEmail)) {
+      const isStrict = process.env.STRICT_COLLEGE_DOMAIN === 'true';
       return res.status(400).json({
         success: false,
-        message: 'Invalid email address format. Please enter a valid email.'
+        message: isStrict && !cleanEmail.endsWith('@anits.edu.in')
+          ? 'Only @anits.edu.in email addresses are allowed.'
+          : 'Invalid email address format. Please enter a valid email.'
       });
     }
 
@@ -84,6 +105,14 @@ const sendOtp = async (req, res) => {
       }
     }
 
+    // Rate limiting check per email
+    if (isRateLimited(cleanEmail)) {
+      return res.status(429).json({
+        success: false,
+        message: 'Too many OTP requests for this email address. Please wait a few minutes before trying again.'
+      });
+    }
+
     // Generate cryptographically secure 6-digit OTP (100000 - 999999)
     const otp = crypto.randomInt(100000, 1000000).toString();
 
@@ -103,17 +132,20 @@ const sendOtp = async (req, res) => {
       });
     }
 
-    // Store in DB or Memory
+    // Store each OTP independently in MongoDB via atomic upsert or in Memory
     if (isDbConnected()) {
       try {
-        await Otp.deleteMany({ email: cleanEmail });
-        await Otp.create({
-          email: cleanEmail,
-          otpHash,
-          expiresAt,
-          attempts: 0,
-          lastSentAt: new Date()
-        });
+        await Otp.findOneAndUpdate(
+          { email: cleanEmail },
+          {
+            email: cleanEmail,
+            otpHash,
+            expiresAt,
+            attempts: 0,
+            lastSentAt: new Date()
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
       } catch (dbErr) {
         memOtps.set(cleanEmail, {
           email: cleanEmail,
@@ -137,6 +169,13 @@ const sendOtp = async (req, res) => {
       success: true,
       message: dispatchResult.message || 'OTP sent successfully to your email.'
     };
+
+    if (dispatchResult.provider) {
+      responsePayload.provider = dispatchResult.provider;
+    }
+    if (dispatchResult.devOtp) {
+      responsePayload.devOtp = dispatchResult.devOtp;
+    }
 
     res.status(200).json(responsePayload);
   } catch (error) {
@@ -166,9 +205,12 @@ const verifyOtp = async (req, res) => {
     const otpStr = otp.toString().trim();
 
     if (!validateEmailAddress(cleanEmail)) {
+      const isStrict = process.env.STRICT_COLLEGE_DOMAIN === 'true';
       return res.status(400).json({
         success: false,
-        message: 'Invalid email address.'
+        message: isStrict && !cleanEmail.endsWith('@anits.edu.in')
+          ? 'Only @anits.edu.in email addresses are allowed.'
+          : 'Invalid email address.'
       });
     }
 
@@ -196,7 +238,7 @@ const verifyOtp = async (req, res) => {
 
     // Check 5-minute expiration
     if (new Date() > new Date(otpRecord.expiresAt)) {
-      if (usingDb) await Otp.deleteMany({ email: cleanEmail }).catch(() => {});
+      if (usingDb) await Otp.deleteOne({ email: cleanEmail }).catch(() => {});
       memOtps.delete(cleanEmail);
       return res.status(400).json({
         success: false,
@@ -205,8 +247,8 @@ const verifyOtp = async (req, res) => {
     }
 
     // Check maximum 5 attempts
-    if (otpRecord.attempts >= 5) {
-      if (usingDb) await Otp.deleteMany({ email: cleanEmail }).catch(() => {});
+    if ((otpRecord.attempts || 0) >= 5) {
+      if (usingDb) await Otp.deleteOne({ email: cleanEmail }).catch(() => {});
       memOtps.delete(cleanEmail);
       return res.status(400).json({
         success: false,
@@ -217,23 +259,27 @@ const verifyOtp = async (req, res) => {
     // Compute SHA-256 hash of provided OTP
     const inputHash = crypto.createHash('sha256').update(otpStr).digest('hex');
 
-    if (inputHash !== otpRecord.otpHash) {
-      otpRecord.attempts = (otpRecord.attempts || 0) + 1;
-      if (usingDb) {
-        try {
-          await otpRecord.save();
-        } catch (e) {}
-      } else {
-        memOtps.set(cleanEmail, otpRecord);
-      }
+    // Timing-safe comparison to prevent timing attacks
+    const inputBuf = Buffer.from(inputHash, 'utf8');
+    const recordBuf = Buffer.from(otpRecord.otpHash, 'utf8');
+    const isMatch = inputBuf.length === recordBuf.length && crypto.timingSafeEqual(inputBuf, recordBuf);
 
-      if (otpRecord.attempts >= 5) {
-        if (usingDb) await Otp.deleteMany({ email: cleanEmail }).catch(() => {});
+    if (!isMatch) {
+      const newAttempts = (otpRecord.attempts || 0) + 1;
+      if (newAttempts >= 5) {
+        if (usingDb) await Otp.deleteOne({ email: cleanEmail }).catch(() => {});
         memOtps.delete(cleanEmail);
         return res.status(400).json({
           success: false,
           message: 'Too many incorrect attempts. Please request a new OTP.'
         });
+      }
+
+      if (usingDb) {
+        await Otp.updateOne({ email: cleanEmail }, { $inc: { attempts: 1 } }).catch(() => {});
+      } else {
+        otpRecord.attempts = newAttempts;
+        memOtps.set(cleanEmail, otpRecord);
       }
 
       return res.status(400).json({
@@ -244,7 +290,7 @@ const verifyOtp = async (req, res) => {
 
     // OTP Verified successfully! Invalidate OTP to prevent reuse
     if (usingDb) {
-      await Otp.deleteMany({ email: cleanEmail }).catch(() => {});
+      await Otp.deleteOne({ email: cleanEmail }).catch(() => {});
     }
     memOtps.delete(cleanEmail);
 

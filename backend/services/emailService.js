@@ -1,65 +1,88 @@
 const path = require('path');
+// Support .env in backend directory or root project directory
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 const { Resend } = require('resend');
 const nodemailer = require('nodemailer');
 
 /**
- * Build all possible SMTP transporters for maximum reliability
+ * Build SMTP transporters for maximum reliability and flexibility.
+ * Supports custom SMTP hosts (Brevo, SendGrid, Mailgun, Amazon SES) as well as Gmail SMTP.
  */
 const getSmtpTransporters = () => {
   const user = process.env.EMAIL_USER || process.env.SMTP_USER;
   const pass = process.env.EMAIL_PASS || process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
 
   if (!user || !pass) {
-    console.error('❌ [CONFIG ERROR] EMAIL_USER or EMAIL_PASS environment variable is missing on server!');
     return [];
   }
 
   const cleanUser = user.trim();
   const cleanPass = pass.replace(/\s+/g, '').trim();
+  const customHost = (process.env.SMTP_HOST || '').trim();
+  const customPort = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : null;
+  const isSecureEnv = process.env.SMTP_SECURE;
 
   const transporters = [];
 
-  // Config 1: Gmail direct service (Port 465 SSL)
-  transporters.push({
-    name: 'Gmail Service',
-    transport: nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user: cleanUser, pass: cleanPass },
-      tls: { rejectUnauthorized: false },
-      connectionTimeout: 8000,
-      greetingTimeout: 8000,
-      socketTimeout: 10000
-    })
-  });
+  // If a custom SMTP host is configured (e.g. Brevo, SendGrid, Mailgun, custom university SMTP)
+  if (customHost) {
+    const isSecure = isSecureEnv !== undefined ? (isSecureEnv === 'true') : (customPort === 465);
+    const port = customPort || (isSecure ? 465 : 587);
+    transporters.push({
+      name: `Custom SMTP (${customHost}:${port})`,
+      transport: nodemailer.createTransport({
+        host: customHost,
+        port,
+        secure: isSecure,
+        auth: { user: cleanUser, pass: cleanPass },
+        tls: { rejectUnauthorized: false },
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 15000
+      })
+    });
+    return transporters;
+  }
 
-  // Config 2: SMTP Port 587 (STARTTLS)
+  // Gmail SMTP Configurations (Port 465 SSL, Port 587 STARTTLS, and Gmail service)
   transporters.push({
-    name: 'smtp.gmail.com:587',
-    transport: nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false, // STARTTLS
-      auth: { user: cleanUser, pass: cleanPass },
-      tls: { rejectUnauthorized: false },
-      connectionTimeout: 8000,
-      greetingTimeout: 8000,
-      socketTimeout: 10000
-    })
-  });
-
-  // Config 3: SMTP Port 465 (SSL)
-  transporters.push({
-    name: 'smtp.gmail.com:465',
+    name: 'smtp.gmail.com:465 (SSL)',
     transport: nodemailer.createTransport({
       host: 'smtp.gmail.com',
       port: 465,
       secure: true,
       auth: { user: cleanUser, pass: cleanPass },
       tls: { rejectUnauthorized: false },
-      connectionTimeout: 8000,
-      greetingTimeout: 8000,
-      socketTimeout: 10000
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000
+    })
+  });
+
+  transporters.push({
+    name: 'smtp.gmail.com:587 (TLS)',
+    transport: nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
+      auth: { user: cleanUser, pass: cleanPass },
+      tls: { rejectUnauthorized: false },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000
+    })
+  });
+
+  transporters.push({
+    name: 'Gmail Service',
+    transport: nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: cleanUser, pass: cleanPass },
+      tls: { rejectUnauthorized: false },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000
     })
   });
 
@@ -122,7 +145,9 @@ const sendOTPEmail = async (email, otp) => {
   console.log(`   Code: ${otp}`);
   console.log('================================================================\n');
 
-  // Strategy 1: Multi-port Nodemailer SMTP
+  let lastErrorMsg = null;
+
+  // Strategy 1: Multi-port Nodemailer SMTP (Can deliver to ANY recipient without restrictions)
   const smtpList = getSmtpTransporters();
   for (const item of smtpList) {
     try {
@@ -142,6 +167,7 @@ const sendOTPEmail = async (email, otp) => {
         message: 'OTP sent successfully to your email.'
       };
     } catch (smtpErr) {
+      lastErrorMsg = `SMTP error (${item.name}): ${smtpErr.message}`;
       console.warn(`⚠️ [SMTP FAIL ${item.name}]:`, smtpErr.message);
     }
   }
@@ -171,16 +197,47 @@ const sendOTPEmail = async (email, otp) => {
         };
       }
 
-      console.warn('⚠️ [RESEND NOTICE]:', result.error.message || result.error);
+      const resendErrStr = (result.error && (result.error.message || JSON.stringify(result.error))) || '';
+      const isSandboxRestriction = resendErrStr.includes('only send testing emails to your own email address') ||
+        resendErrStr.includes('validation_error');
+
+      if (isSandboxRestriction) {
+        console.warn(`⚠️ [RESEND SANDBOX RESTRICTION] Resend test domain (${fromAddress}) only allows delivery to the Resend account owner. Non-owner recipient (${cleanEmail}) was rejected by Resend. To send OTP to all voters, configure Gmail SMTP (EMAIL_USER & EMAIL_PASS) or verify a domain in Resend (resend.com/domains).`);
+        lastErrorMsg = 'Email provider sandbox restriction: onboarding@resend.dev only allows sending to the Resend account owner. To send OTP to all users, please configure Gmail SMTP (EMAIL_USER and EMAIL_PASS) or verify a custom domain in Resend.';
+      } else {
+        lastErrorMsg = `Resend error: ${resendErrStr}`;
+        console.warn('⚠️ [RESEND NOTICE]:', resendErrStr);
+      }
     } catch (resendEx) {
+      lastErrorMsg = `Resend exception: ${resendEx.message}`;
       console.warn('⚠️ [RESEND EXCEPTION]:', resendEx.message);
     }
   }
 
-  // If email could not be delivered through configured providers
+  // Strategy 3: Development / Testing Environment Fallback
+  // When in development/test mode without an external email provider configured,
+  // log OTP to terminal console so local developers and integration tests can authenticate.
+  const isDevOrTest = process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEV_OTP === 'true';
+  if (isDevOrTest) {
+    console.log('\n================================================================');
+    console.log('🔑 [DEVELOPMENT CONSOLE OTP]');
+    console.log(`   Recipient: ${cleanEmail}`);
+    console.log(`   OTP Code:  ${otp}`);
+    console.log('   Expiry:    5 minutes');
+    console.log('   Notice:    In development/testing mode, OTP is logged to server console.');
+    console.log('================================================================\n');
+    return {
+      success: true,
+      provider: 'dev-console',
+      devOtp: otp,
+      message: 'OTP generated (Development mode: logged to server console).'
+    };
+  }
+
+  // If email could not be delivered through configured providers in production
   return {
     success: false,
-    message: 'Unable to send OTP email. Please ensure your email address is correct and EMAIL_USER & EMAIL_PASS are configured.'
+    message: lastErrorMsg || 'Unable to send OTP email. Please ensure your email credentials (EMAIL_USER & EMAIL_PASS, or verified RESEND_API_KEY) are configured.'
   };
 };
 

@@ -44,6 +44,26 @@ async function runTests() {
   console.log('--- EXPO VOTING SYSTEM: API VALIDATION ---');
   console.log('==============================================\n');
 
+  const app = require('./server');
+  const server = http.createServer(app);
+  let serverStarted = false;
+  try {
+    await new Promise((resolve, reject) => {
+      server.listen(5000, () => {
+        serverStarted = true;
+        resolve();
+      });
+      server.on('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+          // Already running externally
+          resolve();
+        } else {
+          reject(err);
+        }
+      });
+    });
+  } catch (e) {}
+
   try {
     // 1. Health Check
     console.log('1. Testing GET /api/health...');
@@ -185,6 +205,15 @@ async function runTests() {
   } catch (err) {
     console.error('\n❌ Test Failure:', err);
     process.exit(1);
+  } finally {
+    const mongoose = require('mongoose');
+    if (mongoose.connection.readyState !== 0) {
+      await mongoose.connection.close().catch(() => {});
+    }
+    if (serverStarted) {
+      server.close();
+    }
+    process.exit(0);
   }
 }
 

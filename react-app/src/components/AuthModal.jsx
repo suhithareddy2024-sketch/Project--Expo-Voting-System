@@ -277,15 +277,15 @@ export default function AuthModal({ isOpen, onClose, onSuccess }) {
                   <label className="form-label text-light small fw-medium">
                     Your Email Address <span className="text-danger">*</span>
                   </label>
-                  <input
-                    type="email"
-                    className="form-control glass-input"
-                    placeholder="e.g. karrisuhithareddy.24.it@anits.edu.in"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    autoFocus
-                  />
+                    <input
+                      type="email"
+                      className="form-control glass-input"
+                      placeholder="e.g. voter@example.com or student@anits.edu.in"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      autoFocus
+                    />
                   <div className="form-text text-light-50 small mt-1">
                     Accepts institutional <strong>@anits.edu.in</strong> or authorized voter email.
                   </div>
